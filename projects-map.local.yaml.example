@@ -1,0 +1,6 @@
+# Локальные оверрайды путей из docs/projects-map.md
+# Скопируйте в projects-map.local.yaml (файл в git не коммитится).
+# Ключи — из таблицы «Пути для OpenSpec / агентов».
+# Значения — относительные от корня my-study-bot-meta или абсолютные.
+
+bot: ../my-study-bot

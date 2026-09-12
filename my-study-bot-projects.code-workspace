@@ -1,0 +1,15 @@
+{
+  // Canonical layout: docs/projects-map.md
+  // Uncomment folders after cloning the repo.
+  "folders": [
+    {
+      "name": "my-study-bot-meta",
+      "path": "."
+    },
+    {
+      "name": "my-study-bot",
+      "path": "../my-study-bot"
+    }
+  ],
+  "settings": {}
+}

@@ -1,0 +1,191 @@
+# =============================================================================
+# OpenSpec — конфигурация экосистемы My Study Bot (meta: bot specs)
+# =============================================================================
+# Этот файл читается CLI и slash-командами (/opsx-propose, /opsx-apply и т.д.).
+# Его содержимое автоматически подмешивается в инструкции при создании артефактов
+# в openspec/changes/<задача>/specs/<capability>/spec.md (proposal, specs, design, tasks).
+#
+# Не дублируйте здесь полные правила из docs/ — достаточно ссылок и ключевых фактов.
+# Подробности: https://github.com/Fission-AI/OpenSpec/blob/main/docs/opsx.md
+# =============================================================================
+
+# Схема workflow: какие артефакты создавать и в каком порядке.
+# spec-driven = proposal → specs → design → tasks (стандарт OpenSpec).
+schema: spec-driven
+
+# Канон путей к sibling-репо — docs/projects-map.md (таблица «Пути для OpenSpec / агентов»).
+# Локальные оверрайды: projects-map.local.yaml (см. projects-map.local.yaml.example).
+projectsMap: docs/projects-map.md
+
+# -----------------------------------------------------------------------------
+# context — «паспорт проекта»
+# -----------------------------------------------------------------------------
+# Попадает во ВСЕ артефакты каждой новой задачи.
+# Зачем: чтобы AI не гадал про стек и знал, где искать правила.
+# Обновляйте при смене стека или появлении важных skills/docs.
+# -----------------------------------------------------------------------------
+context: |
+  Language: Russian
+  All artifacts must be written in Russian.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Карта путей (обязательно): docs/projects-map.md — таблица «Пути для OpenSpec / агентов».
+  Sibling-путь ../my-study-bot (bot) — канон; перекрывается projects-map.local.yaml.
+  Child repos: resolve docs via local project-map.md key my-study-bot-meta (links my-study-bot-meta/docs/...);
+  if unresolved, ask user for absolute my-study-bot-meta path.
+  Runtime: один sibling Git-репозиторий (не monorepo).
+
+  Проект: My Study Bot — Telegram-бот для обучения (long-polling).
+  Домены: start/register, subscription/gate, study/lesson (product flows ещё растут).
+
+  Skills roots: .agents/skills/bot/ (aiogram runtime),
+  .agents/skills/ (openspec-*, align-code, check-changes, commit, implement-change, …).
+  AGENTS.md — индекс docs/, OpenSpec и .agents/skills/.
+  Пакетный контекст: ../my-study-bot/AGENTS.md.
+  При /opsx-apply: читать applyContextFiles из этого config.yaml помимо contextFiles из CLI.
+  При /opsx-verify: читать verifyContextFiles и следовать rules.verify из этого config.yaml.
+  При /opsx-update (openspec-update-change): следовать rules.update — правки артефактов без запроса подтверждения.
+
+  Сборка: команды `pip` / `python` / Docker запускает агент из каталога sibling-репо (bot).
+  Не ждать подтверждения пользователя; при падении — починить до завершения задачи.
+
+  Разделение артефактов (не смешивать слои):
+  - proposal — intent: Why / Scope; без деталей реализации.
+  - specs — поведение: GIVEN/WHEN/THEN; трассировка SC-ID → тест (где применимо).
+  - design — реализация: файлы, слои, точки врезки (без чеклиста и без таблицы SC→тест).
+  - tasks — чеклист для apply по design.
+  Main specs после merge: openspec/specs/ (через /opsx-sync).
+
+  Capability paths (обязательно):
+  - Change-папка: openspec/changes/<slug>/
+  - Delta spec: openspec/changes/<slug>/specs/<capability-id>/spec.md
+  - Main spec: openspec/specs/<capability-id>/spec.md
+  - <capability-id> — продуктовый путь (start/register, subscription/gate, study/lesson, …)
+    из доменов sibling AGENTS.md; неизвестный домен — согласовать ID в proposal, не выдумывать.
+  - ЗАПРЕЩЕНО: папка spec = номер задачи / имя change (specs/msb-123/, specs/add-study-flow/).
+  - Пример: задача про регистрацию на /start → change add-start-register, delta specs/start/register/spec.md.
+
+  --- Bot (projects-map ключ bot → ../my-study-bot/) ---
+  Runtime: ../my-study-bot/ (AGENTS.md — продукт/стек/домены; project-map.md → my-study-bot-meta).
+  Bot skills: .agents/skills/bot/ в my-study-bot-meta.
+
+  Проект: my-study-bot — aiogram 3.22 (Router / Dispatcher / long-polling),
+  SQLAlchemy 2.0 + aiosqlite, python-dotenv, Python 3.13 в Docker (`python:3.13-slim`).
+  Entry: main.py → asyncio.run(main()) → Bot / Dispatcher / dp.start_polling(bot).
+  Слои: main.py (startup) → middleware → handlers; persistence User + AsyncSession;
+  UI keyboards; multi-step FSM в states; Windows-only SSL/IPv4 session строго под win32.
+  Env: TG_TOKEN, DB_URL; deploy Docker Compose + GHCR + GitHub Actions на VPS.
+
+# -----------------------------------------------------------------------------
+# applyContextFiles — обязательные файлы при /opsx-apply
+# -----------------------------------------------------------------------------
+# Не часть стандартного OpenSpec CLI; используется slash-командой opsx-apply.md.
+# Агент ОБЯЗАН прочитать эти файлы после contextFiles из `openspec instructions apply`.
+# -----------------------------------------------------------------------------
+applyContextFiles:
+  - docs/projects-map.md
+  - docs/README.md
+  - AGENTS.md
+  - .agents/AGENTS.md
+  - ../my-study-bot/AGENTS.md
+
+# -----------------------------------------------------------------------------
+# verifyContextFiles — обязательные файлы при /opsx-verify
+# -----------------------------------------------------------------------------
+# Не часть стандартного OpenSpec CLI; используется slash-командой opsx-verify.md
+# и skill openspec-verify-change. Агент ОБЯЗАН прочитать эти файлы перед проверками
+# по rules.verify (стандарты кода и тестов).
+# -----------------------------------------------------------------------------
+verifyContextFiles:
+  - ../my-study-bot/AGENTS.md
+  - .agents/AGENTS.md
+
+# -----------------------------------------------------------------------------
+# rules — требования к артефактам и slash-командам
+# -----------------------------------------------------------------------------
+# Ключи proposal, specs, design, tasks — файлы в change-папке; подмешиваются
+# в инструкции при создании соответствующего артефакта.
+# Ключ verify — не artifact-файл; инструкции для /opsx-verify (читает skill/command).
+# Ключ update — не artifact-файл; инструкции для /opsx-update (openspec-update-change).
+# Правила Bot — в тех же ключах proposal/specs/design без отдельного блока.
+# -----------------------------------------------------------------------------
+rules:
+
+  # proposal.md — intent: зачем, границы; БЕЗ деталей реализации
+  proposal:
+    - 'Секции: Why, Scope, Out of scope, References (issue tracker / docs / sibling AGENTS)'
+    - 'What — опционально; 3–5 bullet summary без реализации'
+    - 'Scope — capability (домен), пакет bot, Telegram UX / subscription / study при необходимости'
+    - 'В Scope явно указать Capability ID (например start/register, subscription/gate, study/lesson); при нескольких доменах — перечислить все; неизвестный домен — согласовать ID, не выдумывать'
+    - 'Ссылаться на docs/ и AGENTS.md sibling, не дублировать правила skills'
+    - 'Явно перечислять scope и out of scope'
+    - '"НЕ в proposal": имена handler-функций, пути app/**, команды pip/pytest'
+    - '"НЕ в proposal": технические prerequisite и блокеры — только в design.md'
+    - '"НЕ в proposal": дублирование сценариев из specs/ — поведение описывать в spec'
+    - 'Bot — Scope: домены (/start, subscription gates, study flows), FSM vs one-shot handlers, русский UX'
+    - 'Bot — «НЕ в proposal»: имена функций handlers.py, callback_data literals как реализация, GIVEN/WHEN из specs'
+
+  # specs/**/*.md — поведение и трассировка к тестам
+  specs:
+    - 'Путь delta: specs/<capability-id>/spec.md; <capability-id> — продуктовый путь (start/register, study/lesson); не имя change'
+    - 'ЗАПРЕЩЕНО: specs/<номер-задачи>/, specs/<имя-change>/ если это не capability'
+    - 'Несколько capability в одном change — несколько папок (specs/start/register/ и specs/subscription/gate/)'
+    - 'Неизвестный домен — согласовать ID в proposal, не выдумывать feature-папку'
+    - 'Сценарии в формате GIVEN / WHEN / THEN'
+    - 'Delta-specs: ADDED / MODIFIED / REMOVED'
+    - 'Каждому исполняемому тесту — ровно один сценарий `#### Scenario [SC-…]: …` с тем же ID в тесте (pytest; если тест добавлен)'
+    - 'В начале spec — таблица трассировки ID → файл/тест (или pending)'
+    - 'Можно: /start upsert outcomes, subscription deny/allow, FSM step outcomes, русские ответы пользователю'
+    - 'Нельзя: имена handler/middleware функций, SQLAlchemy class method names, внутренние helper filenames'
+    - 'Spec описывает только поведение ТЕКУЩЕГО change; логика из другого change — одна строка-ссылка в шапке'
+    - 'Bot — Поведение: greet first/return, gate refuse, FSM cancel/invalid input, Telegram callback ack'
+    - 'Bot — «НЕ в specs»: имена функций, callback_data implementation constants, parse_mode literals как реализация'
+
+  # design.md — как реализовать
+  design:
+    - 'Указать затронутый пакет: bot'
+    - 'Bot — Точки изменений: main.py, app/handlers.py, app/database.py, app/middlewares.py, app/keyboards.py, app/states.py, tests/, Docker/CI'
+    - 'Bot — Слои: thin handlers → injected AsyncSession; UI в keyboards; multi-step в FSM states; persistence через User / SQLAlchemy'
+    - 'Bot — Auth/subscription: message.from_user.id, User.subscription_end / is_active; не параллельный store'
+    - 'Bot — Windows SSL/IPv4 AiohttpSession только под sys.platform == "win32"; Linux/Docker — clean Bot(token=…)'
+    - 'Конкретные файлы, функции, точки врезки в существующий flow'
+    - 'Технические prerequisite и блокеры из explore'
+    - 'Не дублировать чеклист tasks.md — ссылка на tasks'
+    - 'Таблицу трассировки SC-ID → тест держать только в specs/, не в design'
+
+  # tasks.md — чеклист реализации
+  tasks:
+    - 'Дробить по слоям bot (handlers / DB / middleware / FSM / keyboards / tests / deploy); не повторять архитектурные решения — ссылка на design.md'
+    - 'Изучение перед работой (skills, proposal/design/spec фрагменты, аналоги): пунктом в том же ##-блоке, где нужно; НЕ выносить всё чтение в первый «Контекст»-блок'
+    - 'В каждом блоке — только релевантное к шагам блока чтение; общие артефакты change можно кратко упомянуть в первом рабочем блоке'
+    - 'Отдельные пункты на тесты где применимо (bot: pytest; иначе compileall / ручной прогон вне tasks)'
+    - 'НЕ добавлять пункты ручной проверки / manual smoke / «ручной сценарий» — coverage SC в specs Traceability + автотесты; ручной прогон вне tasks (verify/ops)'
+    - 'Bot skills при apply: из .agents/skills/bot/ (locate/align/verify + topic skills)'
+    - 'Финализация: openspec validate, /opsx-sync, /opsx-archive'
+    - 'Команды pip/python/pytest/Docker — запускает агент из sibling-репо; в tasks включать пункты без пометки «(пользователь)»'
+
+  # /opsx-update — правка существующих planning-артефактов change
+  # Не artifact; skill openspec-update-change читает этот список.
+  update:
+    - 'НЕ спрашивать подтверждение перед записью в существующие planning-артефакты (proposal/specs/design/tasks)'
+    - 'Сразу применять coherence/revision-правки; кратко отчитаться: что изменено, почему, что отклонено/отложено'
+    - 'По-прежнему: не создавать новые артефакты, не изобретать файлы под glob specs, не править runtime-код'
+    - 'При смене intent change — рекомендовать новый change, не «тихо» переписывать цель текущего'
+
+  # /opsx-verify — сверка реализации с постановкой и стандартами my-study-bot
+  # Не artifact; skill/command читает этот список после verifyContextFiles.
+  verify:
+    # --- Постановка (Correctness / Completeness) — CRITICAL при провале ---
+    - 'CRITICAL: реализация в задаче (change) должна соответствовать OpenSpec-документам change — proposal.md, specs (delta), design.md, tasks.md; расхождение кода с артефактами = провал verify'
+    - 'CRITICAL: каждый `### Requirement:` из delta-spec имеет реализацию в коде'
+    - 'CRITICAL: каждый `#### Scenario [SC-…]:` покрыт кодом; если в таблице трассировки не `covered-by-reuse` — есть тест с тем же SC-ID где применимо'
+    - 'CRITICAL: таблица SC-ID → тест в spec согласована с фактическими тестами (нет «covered» без метода)'
+    - 'CRITICAL: реализация следует решениям design.md (файлы, точки врезки, пакет bot)'
+    # --- Bot ---
+    - 'CRITICAL (bot): handlers без injected session там, где нужен DB access, вопреки design'
+    - 'CRITICAL (bot): параллельный user/subscription store вместо User + SQLAlchemy вопреки design'
+    - 'CRITICAL (bot): Windows SSL/IPv4 bypass вынесен за win32-ветку или попал в Docker/Linux path'
+    - 'WARNING (bot): user-facing строки не на русском там, где продукт ожидает русский UX'
+    - 'WARNING (bot): нет pytest (или явного skip) на новые критичные flows из tasks'
+    # --- Общее ---
+    - 'SUGGESTION: мелкие отклонения от стиля пакета без влияния на поведение'
