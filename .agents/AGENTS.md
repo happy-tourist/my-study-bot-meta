@@ -37,7 +37,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 | [`commit`](skills/commit/SKILL.md) | Status → stage → commit → **push** по meta + bot (main/master) |
 | [`check-changes`](skills/check-changes/SKILL.md) | Unstaged bot → предложения: добавить/изменить/**удалить** skills, maps, docs, AGENTS.md |
 | [`implement-change`](skills/implement-change/SKILL.md) | Активный change: apply (блоки tasks в субагентах) → align → check-changes → commit |
-| [`end-implement-change`](skills/end-implement-change/SKILL.md) | Закрытие change: update → sync-specs → archive (без вопросов) |
+| [`end-implement-change`](skills/end-implement-change/SKILL.md) | Закрытие change: update → sync-specs → archive → commit (без вопросов) |
 | [`openspec-propose`](skills/openspec-propose/SKILL.md) | Propose: proposal → specs → design → tasks; при активном change по той же теме — править его, не создавать новый |
 | [`openspec-new-change`](skills/openspec-new-change/SKILL.md) | Создать change и начать артефакты по схеме |
 | [`openspec-continue-change`](skills/openspec-continue-change/SKILL.md) | Продолжить создание недостающих артефактов change |

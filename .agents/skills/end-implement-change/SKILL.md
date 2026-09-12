@@ -2,21 +2,21 @@
 name: end-implement-change
 description: >-
   Closes an active OpenSpec change end-to-end: openspec-update-change →
-  openspec-sync-specs → openspec-archive-change. Use when the user asks to
-  end-implement-change, finalize/close a change after implementation, or run
-  update → sync → archive without pausing for questions.
+  openspec-sync-specs → openspec-archive-change → commit. Use when the user
+  asks to end-implement-change, finalize/close a change after implementation,
+  or run update → sync → archive → commit without pausing for questions.
 ---
 
-# End Implement Change — update → sync → archive
+# End Implement Change — update → sync → archive → commit
 
-Оркестратор закрытия **активного** OpenSpec change после реализации. Запускает три скилла **подряд**, без пауз и без вопросов пользователю.
+Оркестратор закрытия **активного** OpenSpec change после реализации. Запускает четыре скилла **подряд**, без пауз и без вопросов пользователю.
 
 ## Когда применять
 
 - Пользователь запускает `end-implement-change` / просит закрыть change после implement
-- Нужен end-to-end: update артефактов → sync delta в main specs → archive
+- Нужен end-to-end: update артефактов → sync delta в main specs → archive → commit (+ push)
 
-Не подменять одиночный `openspec-update-change` / `openspec-sync-specs` / `openspec-archive-change`, если пользователь явно хочет только один шаг.
+Не подменять одиночный `openspec-update-change` / `openspec-sync-specs` / `openspec-archive-change` / `commit`, если пользователь явно хочет только один шаг.
 
 ## Жёсткое правило: без уточнений
 
@@ -32,10 +32,11 @@ Defaults:
 | Неполные tasks при archive? | Продолжить |
 | Sync delta перед archive? | Уже сделан в фазе 2 → **Archive now** (не Cancel, не «без sync»). Если после фазы 2 ещё есть drift — **Sync now**, затем archive |
 | Sync anyway / Cancel? | **Archive now** |
+| Commit messages / подтверждение commit? | Составить сообщения по diff (как в `commit`); не ждать OK. Запуск `end-implement-change` = разрешение на stage → commit → push |
 
 Override «ask the user» / «prompt for selection» / «confirm» из дочерних скиллов **не действует** в этом оркестраторе.
 
-Останавливаться только при жёстком blocker: CLI/IO error, archive target уже существует, sync validation failed и повтор не помог, нет ни одного active change.
+Останавливаться только при жёстком blocker: CLI/IO error, archive target уже существует, sync validation failed и повтор не помог, нет ни одного active change, git/auth blocker у `commit`, который нельзя обойти без человека.
 
 ## Делегируемые скиллы (обязательно прочитать перед фазой)
 
@@ -44,8 +45,9 @@ Override «ask the user» / «prompt for selection» / «confirm» из доче
 | 1. Update | [`.agents/skills/openspec-update-change/SKILL.md`](../openspec-update-change/SKILL.md) |
 | 2. Sync | [`.agents/skills/openspec-sync-specs/SKILL.md`](../openspec-sync-specs/SKILL.md) |
 | 3. Archive | [`.agents/skills/openspec-archive-change/SKILL.md`](../openspec-archive-change/SKILL.md) |
+| 4. Commit | [`.agents/skills/commit/SKILL.md`](../commit/SKILL.md) |
 
-Правила update/sync/archive живут в дочерних скиллах. Здесь — оркестрация, порядок и auto-answers.
+Правила update/sync/archive/commit живут в дочерних скиллах. Здесь — оркестрация, порядок и auto-answers.
 
 ## Вход / выбор change
 
@@ -53,7 +55,7 @@ Override «ask the user» / «prompt for selection» / «confirm» из доче
 2. Иначе `openspec list --json` — если ровно один active → его.
 3. Иначе → самый недавно изменённый (`lastModified`), без вопроса.
 
-Объявить: `Using change: <name>`. Один и тот же `<name>` передать во все три фазы.
+Объявить: `Using change: <name>`. Один и тот же `<name>` передать в фазы 1–3.
 
 ## Workflow
 
@@ -63,7 +65,8 @@ End-Implement-Change Progress:
 - [ ] 2. openspec-update-change
 - [ ] 3. openspec-sync-specs
 - [ ] 4. openspec-archive-change
-- [ ] 5. Short final report
+- [ ] 5. commit (stage → commit → push)
+- [ ] 6. Short final report
 ```
 
 ### 1. Update
@@ -92,7 +95,16 @@ End-Implement-Change Progress:
 - Inline sync из archive **не** дублировать, если фаза 2 уже успешно смержила все delta; только если verification показывает drift — sync, verify, затем move.
 - `mv` change в `archive/YYYY-MM-DD-<name>` (или имя уже с датой — без второго префикса).
 
-### 4. Финальный отчёт
+### 4. Commit
+
+Прочитать и выполнить [`commit`](../commit/SKILL.md) целиком (stage → commit → push по dirty-репо экосистемы meta + bot).
+
+- Запуск `end-implement-change` = явное разрешение на commit/push (как у `implement-change`).
+- Если оба репо чистые и нет unpushed commits — зафиксировать «commit: nothing to do» и идти к отчёту.
+- Если commit/push требует решения человека (чужая ветка, секреты в diff, auth rejected) — остановиться с причиной в отчёте.
+- Не ослаблять safety `commit` (force, amend, секреты).
+
+### 5. Финальный отчёт
 
 Кратко на русском:
 
@@ -103,13 +115,15 @@ End-Implement-Change Progress:
 **Update:** OK | skipped-coherent | failed
 **Sync:** OK | no-delta | failed
 **Archive:** OK | failed → <path>
+**Commit:** OK | nothing-to-do | failed → <причина>
 **Stopped:** нет | <причина>
 ```
 
 ## Не делать
 
 - Не спрашивать пользователя и не ждать OK между фазами.
-- Не пропускать update или sync «чтобы быстрее» (кроме «уже coherent» / «no delta»).
+- Не пропускать update, sync или commit «чтобы быстрее» (кроме «уже coherent» / «no delta» / «nothing to do»).
 - Не архивировать, пока sync (фаза 2 или inline recovery) не завершён или явно no-delta.
-- Не трогать runtime-код в этом скилле.
-- Не создавать PR и не коммитить (для commit — отдельный `commit` / `implement-change`).
+- Не пропускать фазу commit после успешного archive.
+- Не трогать runtime-код в фазах update/sync/archive (runtime коммитится в фазе 4, если уже изменён ранее).
+- Не создавать PR/MR в этом скилле.
