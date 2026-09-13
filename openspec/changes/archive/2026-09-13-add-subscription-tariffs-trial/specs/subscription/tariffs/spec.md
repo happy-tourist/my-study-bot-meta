@@ -18,7 +18,7 @@
 
 ### Requirement: Show tariff catalog in Subscription section
 
-The system SHALL present three subscription tariffs with Russian day-oriented titles and the corresponding test durations in minutes shown in parentheses: one month (30 minutes), three months (90 minutes), and forever (36500 minutes). Optional display prices MAY appear on the controls; the system MUST NOT charge money or call a payment provider in this capability.
+The system SHALL present three subscription tariffs with Russian day-oriented titles and the corresponding test durations in minutes shown in parentheses: one month (30 minutes), three months (90 minutes), and forever (36500 minutes). Optional display prices MAY appear on the controls; the system MUST NOT charge money or call a payment provider in this capability. When the user's trial has not been used, the tariffs screen SHALL also offer a one-time free-trial claim control (see `start/register` SC-START-04); when the trial is already used, that control MUST NOT appear.
 
 #### Scenario [SC-TAR-01]: Tariffs list shows three plans with minute hints
 

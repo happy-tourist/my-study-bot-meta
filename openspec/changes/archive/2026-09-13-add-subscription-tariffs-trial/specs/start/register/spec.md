@@ -9,6 +9,7 @@
 | SC-START-01 | covered (`tests/test_handlers_subscription.py`) |
 | SC-START-02 | covered (`tests/test_handlers_subscription.py`) |
 | SC-START-03 | covered (`tests/test_handlers_subscription.py`) |
+| SC-START-04 | covered (`tests/test_handlers_subscription.py` — claim-trial CTA) |
 | SC-MENU-01 | covered (`tests/test_handlers_subscription.py` — см. также SC-GATE-01) |
 | SC-MENU-02 | covered (`tests/test_handlers_subscription.py` — см. также SC-GATE-02) |
 | SC-MENU-03 | covered (`tests/test_handlers_subscription.py`) |
@@ -48,6 +49,14 @@ The system SHALL upsert the Telegram user on `/start` and reply in Russian with 
 - **THEN** the system does not reactivate a free trial
 - **AND** does not create a duplicate user
 
+#### Scenario [SC-START-04]: Unused trial can be claimed from Subscription
+
+- **GIVEN** a registered user whose trial has not been used (`trial_used` is false)
+- **WHEN** the user opens the Subscription section
+- **THEN** a Russian control to claim the free trial is shown with the tariff plans
+- **AND** selecting that control activates the same three-minute trial once
+- **AND** a second claim attempt does not extend or re-grant the trial
+
 ### Requirement: Navigate section stubs via inline callbacks
 
 The system SHALL open stub screens for Cars and Houses when the corresponding inline action is pressed **and** the user has an active subscription per `subscription/gate`. Without an active subscription the system MUST refuse those sections as defined by `subscription/gate` (not open the stub as allowed content). When the Subscription section action is pressed, the system SHALL open the subscription tariffs screen (catalog of plans) instead of a placeholder stub, without refusing access based on subscription status. The system SHALL acknowledge the callback and allow returning to the main section menu by editing the same bot message.
@@ -70,7 +79,7 @@ The system SHALL open stub screens for Cars and Houses when the corresponding in
 - **AND** a Back-to-menu control is shown
 - **AND** the callback is acknowledged
 
-#### Scenario [SC-MENU-03]: Open Subscription stub without gate
+#### Scenario [SC-MENU-03]: Open Subscription tariffs without gate
 
 - **GIVEN** the user sees the main section menu message
 - **WHEN** the user presses the Subscription section action

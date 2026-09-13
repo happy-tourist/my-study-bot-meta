@@ -1,8 +1,8 @@
 ## Context
 
-Пакет: **bot** (`../my-study-bot`). Мотивация — `proposal.md`. Поведение — delta-specs `start/register`, `subscription/tariffs`, `subscription/gate`, `subscription/expiry`.
+Пакет: **bot** (`../my-study-bot`). Мотивация — `proposal.md`. Поведение — delta-specs `start/register`, `subscription/tariffs`, `subscription/gate`, `subscription/expiry`. Чеклист — `tasks.md` (все пункты выполнены).
 
-Сейчас: `User` без `trial_used`; `/start` без триала; «Подписка» — stub; темы без gate; `EXPIRY_WINDOW_UNIT = "day"`, cron `hour=10, minute=0`; ветка `unit="minute"` уже есть в `app/scheduler.py`. Чеклист — `tasks.md`.
+**As-built:** `User.trial_used` + `_ensure_sqlite_user_columns`; первый `/start` даёт триал 3 мин; «Подписка» — каталог тарифов и опциональная кнопка claim-trial при `trial_used=False`; gate через `app/auth.has_active_subscription` на «Машины»/«Дома»; `EXPIRY_WINDOW_UNIT = "minute"`, cron `minute="*"`.
 
 ## Goals / Non-Goals
 
@@ -31,25 +31,27 @@
 | `subscription/gate` | allow/deny тем |
 | `subscription/expiry` | временный minute mode |
 
-### D2 — Модель и сброс БД
+### D2 — Модель и схема БД
 
 - `User.trial_used: Mapped[bool] = mapped_column(Boolean, default=False)`.
-- При apply удалить локальный файл БД по `DB_URL` (типично `data/db.sqlite3`), затем `init_db`.
+- `init_db`: `create_all` + idempotent `_ensure_sqlite_user_columns` (`ALTER` для `trial_used` на legacy SQLite).
+- При apply допустим сброс локального файла БД по `DB_URL` (типично `data/db.sqlite3`).
 
-### D3 — Триал на `/start`
+### D3 — Триал на `/start` и claim в «Подписка»
 
-Ветка `user is None`: `trial_used=True`, `is_active=True`, `subscription_end = utcnow() + 3 minutes`; текст «3 дня (3 мин)» + topic-меню. Returning без нового триала.
+- Ветка `user is None` на `/start`: `trial_used=True`, `is_active=True`, `subscription_end = utcnow() + 3 minutes`; текст «3 дня (3 мин)» + topic-меню. Returning без нового триала.
+- Legacy / `trial_used=False`: на экране тарифов кнопка `trial:claim` («Получить пробный период») один раз выдаёт тот же триал; повторный claim отклоняется.
 
 ### D4 — Каталог тарифов и UI
 
 | id | title (UI) | minutes | price display |
 |----|------------|---------|---------------|
-| `1_month` | 1 месяц (30 мин) | 30 | 99 ₽ (9900) |
+| `1_month` | 1 месяц (30 мин) | 30 | 99 ₽ |
 | `3_months` | 3 месяца (90 мин) | 90 | 249 ₽ |
 | `forever` | Навсегда (36500 мин) | 36500 | 999 ₽ |
 
-- `callback_data`: `tariff:1_month` / `tariff:3_months` / `tariff:forever`.
-- `menu:subscription` → тарифы + Back (без gate).
+- `callback_data`: `tariff:1_month` / `tariff:3_months` / `tariff:forever`; claim — `trial:claim`.
+- `menu:subscription` → тарифы (+ claim если `not trial_used`) + Back (без gate).
 - Forever = 36500 минут.
 
 ### D5 — Grant без оплаты
@@ -85,13 +87,13 @@ has_active_subscription(user, now):
 
 | Файл | Изменение |
 |------|-----------|
-| `app/database.py` | `trial_used` |
-| `app/handlers.py` | триал; тарифы; gate на cars/houses |
-| helper auth | `has_active_subscription` |
-| `app/keyboards.py` | builders тарифов |
+| `app/database.py` | `trial_used` + ensure-columns |
+| `app/handlers.py` | триал `/start`; claim-trial; тарифы; gate на cars/houses |
+| `app/auth.py` | `has_active_subscription` |
+| `app/keyboards.py` | `tariffs_kb(show_trial=…)`, `subscription_required_kb` |
 | `app/scheduler.py` | minute unit + minutely cron |
-| `tests/` | expiry, trial, tariff, gate |
-| Локальный DB | удалить при apply |
+| `tests/` | expiry, trial, tariff, gate, auth, schema |
+| Локальный DB | сброс опционален; ensure покрывает миграцию |
 
 ### D9 — Technical prerequisites — закрыты
 
@@ -108,9 +110,9 @@ Grant / minute / DB reset / forever / **gate в этом change** — зафик
 
 ## Migration Plan
 
-1. Сброс SQLite → схема с `trial_used`.
-2. Триал + тарифы + gate + minute cron.
-3. Проверка: `/start` → темы открываются; после expire → отказ; «Подписка» → тариф → снова доступ.
+1. Ensure `trial_used` (ALTER) → при необходимости сброс локальной SQLite.
+2. Триал + claim-trial + тарифы + gate + minute cron.
+3. Проверка: `/start` → темы открываются; после expire → отказ; «Подписка» → тариф → снова доступ; legacy `trial_used=False` → claim один раз.
 4. Позже: ЮKassa + day windows.
 
 ## Open Questions
