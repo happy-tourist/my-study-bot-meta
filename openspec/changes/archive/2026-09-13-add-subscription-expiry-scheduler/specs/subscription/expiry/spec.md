@@ -1,6 +1,6 @@
 ## Purpose
 
-Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. В рамках сдачи change — временный тест-харнесс (короткая выдача срока из меню «Подписка» и минутные окна), затем финальное прод-поведение с дневными окнами. **После проверки:** минутные окна и `minute="*"` не остаются прод-MUST; кнопки выдачи MAY остаться как временный UX.
+Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. **Прод-итог change:** дневные окна 3/2/1 UTC и daily cron 10:00 Europe/Moscow. Минутный харнесс и кнопки выдачи 1м/5м использовались только для живой проверки и **не** являются shipping-требованиями: после проверки сняты, раздел «Подписка» снова stub. Сценарии SC-EXP-T* ниже — historical only.
 
 ## Traceability
 
@@ -12,12 +12,12 @@
 | SC-EXP-04 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-05 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-06 | covered (`tests/test_subscription_expiry.py`) |
-| SC-EXP-T01 | covered (manual) |
-| SC-EXP-T02 | covered (manual) |
+| SC-EXP-T01 | covered (manual; historical minute harness) |
+| SC-EXP-T02 | covered (manual; historical minute harness) |
 | SC-EXP-T03 | covered (manual; historical minute harness) |
 | SC-EXP-T04 | covered (code restore + pytest production defaults) |
 
-Связь: меню тем — `start/register` (stub «Подписка» расширяется только тестовыми кнопками выдачи). Gate — будущий `subscription/gate`.
+Связь: меню тем — `start/register` (stub «Подписка» без grant-кнопок в финале). Gate — будущий `subscription/gate`.
 
 ## ADDED Requirements
 
@@ -69,27 +69,25 @@ The system SHALL, on each production daily expiry check, mark as inactive every 
 - **THEN** the system continues processing the remaining matching users
 - **AND** expiry deactivations already determined for other users are still persisted
 
-### Requirement: Temporary test grant controls in subscription section
-
-The system MAY keep temporary test-only inline actions in the subscription section that set the current user's subscription to active with an end time approximately one minute or five minutes ahead (UTC), without payment, until a product subscription UX replaces them. These controls do not imply minute-scale production reminder windows.
-
-#### Scenario [SC-EXP-T01]: Grant one-minute test subscription
-
-- **GIVEN** a registered user opens the subscription section and temporary test grants are present
-- **WHEN** the user chooses the one-minute test subscription action
-- **THEN** that user's record is active with a non-null subscription end about one minute after the action time
-
-#### Scenario [SC-EXP-T02]: Grant five-minute test subscription
-
-- **GIVEN** a registered user opens the subscription section and temporary test grants are present
-- **WHEN** the user chooses the five-minute test subscription action
-- **THEN** that user's record is active with a non-null subscription end about five minutes after the action time
-
 ### Requirement: Temporary minute-scale reminder windows for verification (historical)
 
-While the temporary verification harness was enabled for live checks, the system treated reminder lead intervals as 3, 2, and 1 UTC minute(s) and ran the expiry check about once per minute. **This is not permanent production behavior** — after verification, production MUST use day windows and daily cron (see below).
+While the temporary verification harness was enabled for live checks, the system treated reminder lead intervals as 3, 2, and 1 UTC minute(s) and ran the expiry check about once per minute. Temporary one-/five-minute grant buttons in the subscription section were part of that harness and have been **removed** from runtime after verification. **This is not permanent production behavior** — production MUST use day windows and daily cron (see below), and MUST NOT ship minute grant controls until a product subscription UX change.
 
-#### Scenario [SC-EXP-T03]: Five-minute grant yields soon-expiry reminder then expiry
+#### Scenario [SC-EXP-T01]: One-minute grant yields expiry (historical)
+
+- **GIVEN** the temporary verification harness was enabled
+- **AND** an active user was granted a subscription end about one minute ahead
+- **WHEN** expiry checks ran about once per minute
+- **THEN** after the end time passed, the user was marked inactive and received a Russian expired message
+
+#### Scenario [SC-EXP-T02]: Five-minute grant path observed (historical)
+
+- **GIVEN** the temporary verification harness was enabled
+- **AND** an active user was granted a subscription end about five minutes ahead
+- **WHEN** expiry checks ran about once per minute
+- **THEN** the harness path was used to observe soon-expiry reminder and/or expiry messaging in Telegram
+
+#### Scenario [SC-EXP-T03]: Five-minute grant yields soon-expiry reminder then expiry (historical)
 
 - **GIVEN** the temporary verification harness is enabled
 - **AND** an active user has a subscription end about five minutes after grant time
@@ -99,7 +97,7 @@ While the temporary verification harness was enabled for live checks, the system
 
 ### Requirement: Production schedule and day windows after verification
 
-Before the change is considered complete for production, the system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`), and MUST NOT leave every-minute cron as the permanent schedule.
+Before the change is considered complete for production, the system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`), MUST NOT leave every-minute cron as the permanent schedule, and MUST NOT ship temporary grant buttons in the subscription section.
 
 #### Scenario [SC-EXP-T04]: Production mode restored after verification
 
@@ -108,3 +106,4 @@ Before the change is considered complete for production, the system SHALL use da
 - **THEN** reminder lead intervals are measured in UTC days (3, 2, and 1)
 - **AND** the expiry check is scheduled once daily at 10:00 Europe/Moscow
 - **AND** every-minute cron is not the permanent schedule
+- **AND** temporary one-/five-minute grant buttons are not present in the subscription section

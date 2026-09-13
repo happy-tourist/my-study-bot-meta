@@ -25,9 +25,10 @@
 - [x] 5.1 `openspec validate add-subscription-expiry-scheduler` — без ошибок
 - [x] 5.2 После apply: `/opsx-sync` (или sync-specs) — delta `subscription/expiry` в main specs (`openspec/specs/subscription/expiry/`); archive отложен на end-implement-change
 
-## 6. Временный тест-харнесс (design D8)
+## 6. Временный тест-харнесс (design D8) — historical; снят после verify
 
 - [x] 6.1 В `app/scheduler.py` временно переключить remind-окна на минуты (`N in (3,2,1)` минут) и оставить/подтвердить cron `minute="*"` — классификация для end≈now+5m даёт remind_1 примерно за минуту до конца; copy согласован с минутами или приемлемо для теста
 - [x] 6.2 В разделе «Подписка»: две inline-кнопки «На 1 минуту» / «На 5 минут» + handlers (`sub:test:1m` / `sub:test:5m`) выставляют `is_active=True` и `subscription_end = utcnow()+1m` / `+5m` — кнопки видны, после нажатия строка User обновлена
 - [x] 6.3 На стенде/проде после деплоя: нажать «На 1 минуту» → дождаться сообщения об истечении; нажать «На 5 минут» → remind roughly за 1 мин до конца, затем expire — SC-EXP-T01…T03 наблюдаемы в Telegram (подтверждено пользователем)
-- [x] 6.4 После успешной проверки: вернуть дневные окна 3/2/1 и прод-cron `hour=10, minute=0`; `rg 'minute="\\*"' app/scheduler.py main.py` пусто; `pytest` по SC-EXP-01…06 зелёный — финальный код без minute-cron и без minute-windows (кнопки 1m/5m оставлены)
+- [x] 6.4 После успешной проверки: вернуть дневные окна 3/2/1 и прод-cron `hour=10, minute=0`; `rg 'minute="\\*"' app/scheduler.py main.py` пусто; `pytest` по SC-EXP-01…06 зелёный — финальный код без minute-cron и без minute-windows
+- [x] 6.5 Post-verify cleanup: удалить временные grant-кнопки 1м/5м и handlers `sub:test:*`; раздел «Подписка» снова stub — в runtime нет shipping grant UX

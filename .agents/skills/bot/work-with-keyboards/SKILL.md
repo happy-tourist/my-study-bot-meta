@@ -28,9 +28,9 @@ Coordinate with: `bot-locate-change-points` (where to edit), handlers / FSM in `
 
 ## Bot Today
 
-- `app/keyboards.py` — builders: `main_menu_kb()`, `back_to_menu_kb()`, temporary `subscription_kb()`; shared callback constants (`MENU_*`, `SUB_TEST_1M` / `SUB_TEST_5M`).
-- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb()`; Subscription section uses `subscription_kb()` for short test grants; section stubs navigate via `edit_text` + `callback.answer()`.
-- Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…` / `kb.SUB_TEST_…`).
+- `app/keyboards.py` — builders: `main_menu_kb()`, `back_to_menu_kb()`; shared callback constants (`MENU_*`).
+- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb()`; section stubs (cars/houses/subscription) use `back_to_menu_kb()` via `edit_text` + `callback.answer()`.
+- Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…`).
 
 ## Placement Pattern
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. **Прод-канон:** дневные окна 3/2/1 UTC и ежедневный cron утром Europe/Moscow. Временный минутный харнесс (minute-cron + минутные окна) использовался только для живой проверки и **не** является постоянным прод-поведением. Тестовые кнопки выдачи короткой подписки в меню «Подписка» могут оставаться до отдельного product-change.
+Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. **Прод-канон:** дневные окна 3/2/1 UTC и ежедневный cron утром Europe/Moscow. Временный минутный харнесс и тест-кнопки выдачи короткой подписки использовались только для живой проверки и **удалены** из runtime; продуктовый UX подписки — отдельный change.
 
 ## Traceability
 
@@ -14,12 +14,12 @@
 | SC-EXP-04 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-05 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-06 | covered (`tests/test_subscription_expiry.py`) |
-| SC-EXP-T01 | covered (manual; temporary test grant UX) |
-| SC-EXP-T02 | covered (manual; temporary test grant UX) |
+| SC-EXP-T01 | covered (manual; historical minute harness — not production) |
+| SC-EXP-T02 | covered (manual; historical minute harness — not production) |
 | SC-EXP-T03 | covered (manual; historical minute harness — not production) |
 | SC-EXP-T04 | covered (code restore + pytest production defaults) |
 
-Связь: меню тем — `start/register` (stub «Подписка» может содержать временные тест-кнопки). Gate — будущий `subscription/gate`.
+Связь: меню тем — `start/register` (stub «Подписка» без grant-кнопок). Gate — будущий `subscription/gate`.
 
 ## Requirements
 
@@ -73,7 +73,7 @@ The system SHALL, on each production daily expiry check, mark as inactive every 
 
 ### Requirement: Production schedule and day windows
 
-The system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`). The system MUST NOT use every-minute cron (`minute="*"`) or minute-scale reminder windows as the permanent production schedule.
+The system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`). The system MUST NOT use every-minute cron (`minute="*"`) or minute-scale reminder windows as the permanent production schedule, and MUST NOT ship temporary one-/five-minute grant buttons in the subscription section.
 
 #### Scenario [SC-EXP-T04]: Production day mode and daily cron
 
@@ -82,23 +82,30 @@ The system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-dail
 - **THEN** reminder lead intervals are measured in UTC days (3, 2, and 1)
 - **AND** the expiry check is scheduled once daily at 10:00 Europe/Moscow
 - **AND** every-minute cron is not the production schedule
+- **AND** temporary one-/five-minute grant buttons are not present in the subscription section
 
-### Requirement: Temporary test grant controls in subscription section
+## Historical note (not production MUST)
 
-The system MAY keep temporary test-only inline actions in the subscription section that set the current user's subscription to active with an end time approximately one minute or five minutes ahead (UTC), without payment, until a product subscription UX replaces them. These controls are **not** payment or tariff product; they do not change the production day-window / daily-cron schedule.
+Minute-scale reminder windows, `minute="*"` cron, and temporary one-/five-minute grant buttons in the subscription section were used only during live verification. They are **not** permanent production requirements and MUST NOT remain in the shipping bot UI; production behavior is defined by the day-window and daily-cron requirements above. After verification the harness was removed and the subscription section returned to a stub.
 
-#### Scenario [SC-EXP-T01]: Grant one-minute test subscription
+#### Scenario [SC-EXP-T01]: One-minute grant yields expiry (historical)
 
-- **GIVEN** a registered user opens the subscription section and temporary test grants are present
-- **WHEN** the user chooses the one-minute test subscription action
-- **THEN** that user's record is active with a non-null subscription end about one minute after the action time
+- **GIVEN** the temporary verification harness was enabled
+- **AND** an active user was granted a subscription end about one minute ahead
+- **WHEN** expiry checks ran about once per minute
+- **THEN** after the end time passed, the user was marked inactive and received a Russian expired message
 
-#### Scenario [SC-EXP-T02]: Grant five-minute test subscription
+#### Scenario [SC-EXP-T02]: Five-minute grant path observed (historical)
 
-- **GIVEN** a registered user opens the subscription section and temporary test grants are present
-- **WHEN** the user chooses the five-minute test subscription action
-- **THEN** that user's record is active with a non-null subscription end about five minutes after the action time
+- **GIVEN** the temporary verification harness was enabled
+- **AND** an active user was granted a subscription end about five minutes ahead
+- **WHEN** expiry checks ran about once per minute
+- **THEN** the harness path was used to observe soon-expiry reminder and/or expiry messaging in Telegram
 
-### Historical note (not production MUST)
+#### Scenario [SC-EXP-T03]: Five-minute grant yields soon-expiry reminder then expiry (historical)
 
-Minute-scale reminder windows and `minute="*"` cron were used only during temporary live verification (SC-EXP-T03). They are **not** permanent production requirements; production behavior is defined by the day-window and daily-cron requirements above.
+- **GIVEN** the temporary verification harness was enabled
+- **AND** an active user had a subscription end about five minutes after grant time
+- **WHEN** expiry checks ran about once per minute
+- **THEN** the user received a Russian soon-to-expire reminder when the end fell in the one-minute-ahead window
+- **AND** after the end time passed, the user was marked inactive and received a Russian expired message

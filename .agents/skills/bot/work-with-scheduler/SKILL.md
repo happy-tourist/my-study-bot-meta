@@ -33,7 +33,6 @@ Related skills: `bot-work-with-auth` (gates / `User` fields),
 | Scheduler module | `app/scheduler.py` | `AsyncIOScheduler`, window math, `check_subscriptions`, start/stop |
 | Wire-up | `main.py` | `startup` → `start_scheduler(bot)`; `shutdown` → `stop_scheduler()` |
 | User fields | `app/database.py` `User` | `subscription_end`, `is_active` — source of truth |
-| Test grants (temp) | `app/handlers.py` + `app/keyboards.py` | `sub:test:1m` / `5m` set short `subscription_end` |
 | Tests | `tests/test_subscription_expiry.py` | Windows, classify, delivery, production defaults |
 
 ## Production Defaults (do not regress)
@@ -88,9 +87,9 @@ Prefer extending these helpers over duplicating window math in handlers.
 | Pass `unit="minute"` / fixed `now=` in tests | Flip module default to `"minute"` permanently |
 | Keep Russian reminder / expired copy in scheduler | Invent English-only system DMs |
 
-Temporary **test grant** buttons (`subscription_kb`, `_grant_test_subscription`)
-live in handlers/keyboards — they only set `User.subscription_end`; the scheduler
-still owns reminders and deactivation.
+Do **not** reintroduce temporary minute grant buttons in the subscription stub
+unless a new OpenSpec change asks for a verification harness. Product subscription
+UX is a separate change; the scheduler owns reminders and deactivation only.
 
 ## Testing
 

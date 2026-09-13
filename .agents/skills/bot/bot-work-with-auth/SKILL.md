@@ -4,9 +4,8 @@ description: >-
   Use when adding, changing, reviewing, or debugging Telegram bot access and
   subscription gates: User upsert on /start, message.from_user.id as identity,
   SQLAlchemy User.subscription_end / is_active checks, background expiry via
-  app/scheduler.py (reminders + deactivation), temporary test-grant callbacks,
-  DbSessionMiddleware session injection, or gated handlers in this aiogram
-  my-study-bot package.
+  app/scheduler.py (reminders + deactivation), DbSessionMiddleware session
+  injection, or gated handlers in this aiogram my-study-bot package.
 ---
 
 # Work With Auth
@@ -59,7 +58,6 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; greet first visit vs return; attach inline topic menu (`kb.main_menu_kb()`) |
 | Gate | Handlers (or helper) | Load `User` by Telegram id; require `is_active` and valid `subscription_end` |
 | Expiry job | `app/scheduler.py` | Daily cron: remind 3/2/1 days, then set `is_active=False` when expired |
-| Test grants (temp) | `app/handlers.py` + `subscription_kb` | `sub:test:1m` / `5m` set short `subscription_end` for manual checks |
 | Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`) |
 | Storage | `data/db.sqlite3` | Runtime SQLite (gitignored; Compose volume `./data:/app/data`) |
 

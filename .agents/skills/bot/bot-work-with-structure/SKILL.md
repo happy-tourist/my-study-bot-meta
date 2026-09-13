@@ -55,7 +55,7 @@ Sibling meta: resolve via `project-map.md` key `my-study-bot-meta`
 | Handlers | `app/handlers.py` | Routers / commands / callbacks (thin orchestration) |
 | Database | `app/database.py` | Engine, `async_session`, `User` model, `init_db()` |
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` injects `session: AsyncSession` |
-| Keyboards | `app/keyboards.py` | Inline topic-menu builders (`main_menu_kb`, `back_to_menu_kb`, `menu:*`; temp `subscription_kb`) |
+| Keyboards | `app/keyboards.py` | Inline topic-menu builders (`main_menu_kb`, `back_to_menu_kb`, `menu:*`) |
 | Scheduler | `app/scheduler.py` | APScheduler expiry job (`check_subscriptions`); start/stop from `main` hooks |
 | FSM | `app/states.py` | aiogram FSM states / groups |
 | Tests | `tests/` | pytest + pytest-asyncio (`test_subscription_expiry.py`, …) |
