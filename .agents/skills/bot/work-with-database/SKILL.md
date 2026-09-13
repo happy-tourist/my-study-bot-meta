@@ -4,8 +4,9 @@ description: >-
   Use when adding, changing, reviewing, or debugging the SQLite user store,
   SQLAlchemy User model, DB_URL / data/db.sqlite3 paths, DbSessionMiddleware
   session injection, init_db, _SQLITE_USER_COLUMN_DDL / _ensure_sqlite_user_columns
-  startup ALTER, or subscription fields (subscription_end, is_active, trial_used)
-  in my-study-bot so Telegram /start registration and handlers keep working.
+  startup ALTER, or subscription / admin fields (subscription_end, is_active,
+  trial_used, is_admin, is_banned) in my-study-bot so Telegram /start
+  registration and handlers keep working.
 ---
 
 # Work With Database
@@ -23,7 +24,7 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 | Connection + model | `app/database.py` | `DB_URL`, `engine`, `async_session`, `Base`, `User`, `init_db()`, `_SQLITE_USER_COLUMN_DDL`, `_ensure_sqlite_user_columns` |
 | Session injection | `app/middlewares.py` | `DbSessionMiddleware` opens `async_session()`, sets `data["session"]` |
 | Wire-up | `main.py` | `dp.update.middleware(DbSessionMiddleware())` then `await init_db()` |
-| Handlers | `app/handlers.py` | Declare `session: AsyncSession`; upsert `User` on `/start` |
+| Handlers | `app/handlers.py`, `app/handlers_admin.py` | Declare `session: AsyncSession`; upsert `User` on `/start`; admin mutations |
 | Env | `.env` (no `.env.example` yet) | `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`); `TG_TOKEN` unrelated to DB |
 | Deploy volume | `docker-compose.yml` | `./data:/app/data` — SQLite file survives container restarts |
 | Ignore | `.gitignore` | `data/` is gitignored — DB is not committed |
@@ -39,11 +40,13 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 | `subscription_end` | `DateTime`, nullable | Expiry instant; used by `app/scheduler.py` + `app/auth.py` gates |
 | `is_active` | `Boolean`, `default=True` | Active flag |
 | `trial_used` | `Boolean`, `default=False` | One-time free trial already consumed |
+| `is_admin` | `Boolean`, `default=False` | DB admin role (OR with bootstrap `ADMIN_IDS`) |
+| `is_banned` | `Boolean`, `default=False` | Full learner access block («доступ закрыт») |
 | `created_at` | `DateTime`, `default=datetime.utcnow` | Row creation time |
 
-These are **Telegram learner** fields (identity + subscription), not HTTP auth users. There is no separate admin API or JWT user store in this package.
+These are **Telegram user** fields (identity + subscription + operator flags), not HTTP auth users. There is no separate admin HTTP API or JWT user store in this package — admin UX is Telegram-only (`handlers_admin`).
 
-`init_db()` runs `Base.metadata.create_all`, then `_ensure_sqlite_user_columns` — idempotent `ALTER TABLE` for known new columns (e.g. `trial_used`) on an existing SQLite `users` table so VPS volume survives deploy without manual SSH wipe.
+`init_db()` runs `Base.metadata.create_all`, then `_ensure_sqlite_user_columns` — idempotent `ALTER TABLE` for known new columns (e.g. `trial_used`, `is_admin`, `is_banned`) on an existing SQLite `users` table so VPS volume survives deploy without manual SSH wipe.
 
 ## Relation To Handlers / Identity
 
@@ -87,6 +90,8 @@ class User(Base):
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # new_field: Mapped[str | None] = mapped_column(String(64), nullable=True)
 ```

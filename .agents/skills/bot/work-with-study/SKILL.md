@@ -39,8 +39,8 @@ Scaffold today: `/start` registers `User` (first visit grants one-time trial), g
 | --- | --- |
 | Register user on `/start` | Implemented (`User` upsert + trial on first visit + topic menu) |
 | Subscription / study features | Tariffs + Cars/Houses gate live; study lesson content still stubs |
-| FSM forms / keyboards | Topic menu, tariffs, subscription-required CTA; `app/states.py` still a stub |
-| Modular routers | Single `app/handlers.py` + `app/auth.py` gate helper |
+| FSM forms / keyboards | Topic menu, tariffs, gate CTA; admin builders + `AdminSearchForm` (study FSM still future) |
+| Modular routers | Learner `app/handlers.py` + admin `app/handlers_admin.py`; gate helpers in `app/auth.py` |
 
 When adding study/subscription behavior, prefer extending the existing `User` model and middleware session injection rather than inventing a parallel data path.
 

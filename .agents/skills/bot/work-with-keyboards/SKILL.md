@@ -28,8 +28,9 @@ Coordinate with: `bot-locate-change-points` (where to edit), handlers / FSM in `
 
 ## Bot Today
 
-- `app/keyboards.py` — builders: `main_menu_kb()`, `back_to_menu_kb()`, `tariffs_kb()`, `subscription_required_kb()`; shared callback constants (`MENU_*`, `TARIFF_PREFIX` / `TARIFFS`).
-- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb()`; Cars/Houses stubs use `back_to_menu_kb` when gate allows; Subscription opens `tariffs_kb`; gate refuse uses `subscription_required_kb`.
+- `app/keyboards.py` — builders: `main_menu_kb(show_admin=…)`, `back_to_menu_kb()`, `tariffs_kb()`, `subscription_required_kb()`, admin panel builders; shared callback constants (`MENU_*`, `TARIFF_PREFIX` / `TARIFFS`, `ADMIN_*`).
+- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb(show_admin=…)`; Cars/Houses stubs use `back_to_menu_kb` when gate allows; Subscription opens `tariffs_kb`; gate refuse uses `subscription_required_kb`.
+- `app/handlers_admin.py` — admin builders via same `kb` module (`admin:ulist:` / `admin:blist:` / `admin:u:` / `admin:ban:` — prefixes must not nest under `startswith`).
 - Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…`, `F.data.startswith(kb.TARIFF_PREFIX)`, `kb.CLAIM_TRIAL`).
 - `tariffs_kb(show_trial=…)` — optional «Получить пробный период» when `trial_used` is False (legacy users).
 

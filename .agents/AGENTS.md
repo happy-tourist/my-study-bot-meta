@@ -63,21 +63,21 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 | [`bot-align-code`](skills/bot/bot-align-code/SKILL.md) | Audit ветки / диффа против OpenSpec change, аналогов, test readiness; handlers / User / middleware / FSM / keyboards / deploy |
 | [`bot-locate-change-points`](skills/bot/bot-locate-change-points/SKILL.md) | Где править / куда класть новые файлы (без правок кода) |
 | [`bot-verify-code`](skills/bot/bot-verify-code/SKILL.md) | Проверка кода / compliance skills + DRY/KISS/YAGNI |
-| [`bot-work-with-auth`](skills/bot/bot-work-with-auth/SKILL.md) | `/start` upsert + trial, `app/auth.py` gate, `subscription_end` / `is_active` / `trial_used`, tariffs |
+| [`bot-work-with-auth`](skills/bot/bot-work-with-auth/SKILL.md) | `/start` upsert + trial, gate/ban, `ADMIN_IDS` / `is_admin` / `is_banned`, admin panel (`handlers_admin`) |
 | [`bot-work-with-errors`](skills/bot/bot-work-with-errors/SKILL.md) | Handler/DB/FSM/Telegram errors → русские `message.answer` / `callback.answer` |
-| [`bot-work-with-structure`](skills/bot/bot-work-with-structure/SKILL.md) | `main.py` / handlers / auth / models / middleware / keyboards / states / Docker placement |
-| [`bot-work-with-test`](skills/bot/bot-work-with-test/SKILL.md) | pytest + pytest-asyncio (trial/tariffs/gate, auth helper, expiry harness) |
-| [`work-with-config`](skills/bot/work-with-config/SKILL.md) | `load_dotenv`, `TG_TOKEN` / `DB_URL`, win32 session vs clean `Bot`, startup wiring |
-| [`work-with-database`](skills/bot/work-with-database/SKILL.md) | SQLite User store, `DB_URL`, `init_db`, session injection, `trial_used` |
-| [`work-with-models`](skills/bot/work-with-models/SKILL.md) | SQLAlchemy `User` / DeclarativeBase / `subscription_end` / `is_active` / `trial_used` |
+| [`bot-work-with-structure`](skills/bot/bot-work-with-structure/SKILL.md) | `main.py` / learner+admin handlers / auth / models / middleware / keyboards / states / Docker |
+| [`bot-work-with-test`](skills/bot/bot-work-with-test/SKILL.md) | pytest + pytest-asyncio (trial/tariffs/gate, admin panel, auth helper, expiry) |
+| [`work-with-config`](skills/bot/work-with-config/SKILL.md) | `load_dotenv`, `TG_TOKEN` / `DB_URL` / `ADMIN_IDS`, win32 session vs clean `Bot`, dual-router startup |
+| [`work-with-database`](skills/bot/work-with-database/SKILL.md) | SQLite User store, `DB_URL`, `init_db`, session injection, `trial_used` / `is_admin` / `is_banned` |
+| [`work-with-models`](skills/bot/work-with-models/SKILL.md) | SQLAlchemy `User` / DeclarativeBase / subscription + admin/ban columns |
 | [`work-with-middleware`](skills/bot/work-with-middleware/SKILL.md) | `DbSessionMiddleware`, registration, AsyncSession lifecycle |
-| [`work-with-handlers`](skills/bot/work-with-handlers/SKILL.md) | Router handlers, filters, trial/tariffs/gate callbacks, `include_router` |
+| [`work-with-handlers`](skills/bot/work-with-handlers/SKILL.md) | Learner + admin routers, filters, trial/tariffs/gate/`admin:*`, `include_router` |
 | [`work-with-messages`](skills/bot/work-with-messages/SKILL.md) | `message.answer` / reply / edit / captions, русский UX, parse_mode |
-| [`work-with-keyboards`](skills/bot/work-with-keyboards/SKILL.md) | Reply/Inline builders в `app/keyboards.py`, `menu:*` / `tariff:*` |
-| [`work-with-fsm`](skills/bot/work-with-fsm/SKILL.md) | `StatesGroup` / `FSMContext`, multi-step forms (не подмена SQLite) |
+| [`work-with-keyboards`](skills/bot/work-with-keyboards/SKILL.md) | Reply/Inline builders в `app/keyboards.py`, `menu:*` / `tariff:*` / `admin:*` |
+| [`work-with-fsm`](skills/bot/work-with-fsm/SKILL.md) | `StatesGroup` / `FSMContext`, `AdminSearchForm` + future study forms (не подмена SQLite) |
 | [`work-with-study`](skills/bot/work-with-study/SKILL.md) | Продуктовая study-логика, lessons, subscription-gated learning |
 | [`work-with-scheduler`](skills/bot/work-with-scheduler/SKILL.md) | APScheduler: expiry reminders / deactivation; temporary minute harness vs day+10:00 MSK |
-| [`work-with-env-deploy`](skills/bot/work-with-env-deploy/SKILL.md) | `.env` / Docker Compose / VPS / GHCR / GitHub Actions |
+| [`work-with-env-deploy`](skills/bot/work-with-env-deploy/SKILL.md) | `.env` (`TG_TOKEN` / `DB_URL` / `ADMIN_IDS`) / Docker Compose / VPS / GHCR |
 
 Runtime-пути в skills (`app/…`, `main.py`) — относительно корня sibling-репозитория `my-study-bot`.
 

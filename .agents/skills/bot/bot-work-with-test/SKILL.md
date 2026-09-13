@@ -70,8 +70,9 @@ if needed (`pip install pytest pytest-asyncio`).
 | Subject | Test path |
 |---------|-----------|
 | `app/database.py` (`init_db`, `_ensure_sqlite_user_columns`) | `tests/test_database_schema.py` |
-| `app/handlers.py` (trial `/start`, tariffs, topic gate) | `tests/test_handlers_subscription.py` |
-| `app/auth.py` (`has_active_subscription`) | `tests/test_auth.py` |
+| `app/handlers.py` (trial `/start`, tariffs, topic gate, ban) | `tests/test_handlers_subscription.py` |
+| `app/handlers_admin.py` (admin panel) | `tests/test_handlers_admin.py` |
+| `app/auth.py` (`has_active_subscription`, admin/ban helpers) | `tests/test_auth.py` |
 | `app/scheduler.py` (windows, expire, harness defaults) | `tests/test_subscription_expiry.py` |
 | `app/states.py` / FSM dialogs | `tests/test_fsm_*.py` |
 | `app/middlewares.py` (`DbSessionMiddleware`) | `tests/test_middleware_db.py` |
@@ -91,7 +92,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 ## Workflow
 
-1. Read the SUT (`app/handlers.py`, `app/scheduler.py`, `app/database.py` `User`,
+1. Read the SUT (`app/handlers.py`, `app/handlers_admin.py`, `app/scheduler.py`, `app/database.py` `User`,
    middleware, `app/states.py` when FSM exists) and note the user-facing contract.
 2. Produce a test plan with two sections: **What needs to be mocked / stubbed**
    and **What to verify**.

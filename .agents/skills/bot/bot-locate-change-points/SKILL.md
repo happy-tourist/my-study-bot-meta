@@ -27,22 +27,23 @@ Search and assign ownership top-down along the Telegram update path.
 | Layer | Path | Role |
 |-------|------|------|
 | Entry | `main.py` | Bot, Dispatcher, polling, platform session |
-| Handlers | `app/handlers.py` | Router, commands, callbacks |
-| Auth helper | `app/auth.py` | `has_active_subscription` |
+| Handlers | `app/handlers.py` | Learner router, commands, callbacks |
+| Admin handlers | `app/handlers_admin.py` | Admin panel router (`/admin`, lists, search, mutations) |
+| Auth helper | `app/auth.py` | subscription gate + admin/ban (`ADMIN_IDS`) |
 | DB | `app/database.py` | engine, User, init_db |
 | Middleware | `app/middlewares.py` | DbSessionMiddleware |
-| Keyboards | `app/keyboards.py` | topic menu / tariffs / gate CTA |
+| Keyboards | `app/keyboards.py` | topic menu / tariffs / gate CTA / admin |
 | Scheduler | `app/scheduler.py` | expiry reminders / deactivation |
-| FSM | `app/states.py` | FSM states |
+| FSM | `app/states.py` | FSM states (`AdminSearchForm`) |
 | Tests | `tests/` | pytest suite |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml` | GHCR + VPS |
-| Env | `.env` (gitignored), `TG_TOKEN`, `DB_URL` | secrets / DB URL |
+| Env | `.env` (gitignored), `TG_TOKEN`, `DB_URL`, `ADMIN_IDS` | secrets / DB URL / bootstrap admins |
 
 Allowed dependency direction:
 
 Telegram update → Dispatcher middleware (`DbSessionMiddleware`) → handler (`session` injected) → optional `app/auth.py` gate → SQLAlchemy `AsyncSession` → SQLite under `data/`. Shared UI in `keyboards.py`; multi-step dialogs in `states.py`. Prefer thin handlers; do not put business logic only inside `main.py`.
 
-Prefer not editing `main.py` unless Bot/Dispatcher/polling/middleware registration or Windows-only session setup requires it — product flows live in `app/handlers.py` (+ `auth.py` / states / keyboards / DB).
+Prefer not editing `main.py` unless Bot/Dispatcher/polling/middleware/router registration or Windows-only session setup requires it — product flows live in `app/handlers.py` / `app/handlers_admin.py` (+ `auth.py` / states / keyboards / DB).
 
 ### Current vs intended product (scaffold)
 
@@ -50,22 +51,23 @@ Handlers are still thin; prefer extending existing layers rather than inventing 
 
 | Expectation | Today |
 |-------------|--------|
-| Register user on `/start` | Implemented (`User` upsert + one-time trial + topic menu) |
-| Subscription / study features | Tariffs + Cars/Houses gate via `has_active_subscription`; study content still stubs |
-| FSM forms / keyboards | Topic menu, tariffs, subscription-required CTA; `app/states.py` still a stub |
-| Modular routers | Single `router` in `app/handlers.py` + `app/auth.py`; included from `main.py` |
+| Register user on `/start` | Implemented (`User` upsert + one-time trial + topic menu; ban → access closed; Admin button when admin) |
+| Subscription / study features | Tariffs + Cars/Houses gate via `has_active_subscription`; ban overrides; study content still stubs |
+| FSM forms / keyboards | Topic menu, tariffs, gate CTA, admin builders; `AdminSearchForm` for admin search |
+| Modular routers | Learner `app/handlers.py` + admin `app/handlers_admin.py`; both included from `main.py` |
 | `.env.example` | Missing — vars documented in `AGENTS.md` |
-| Tests | `tests/` — expiry, auth helper, trial/tariffs/gate handlers |
+| Tests | `tests/` — expiry, auth helper, trial/tariffs/gate, admin panel |
 
 ### Handler / UX surface (today)
 
 | Trigger | Behavior |
 |---------|----------|
-| `/start` (`CommandStart`) | Create `User` if missing (trial); greet; attach inline topic menu |
-| `menu:cars` / `menu:houses` | Gate via `has_active_subscription`; stub or refuse + CTA |
-| `menu:subscription` | Tariffs list (always open) |
-| `tariff:*` | Grant minutes onto `subscription_end` |
-| `menu:back` | Restore section-choice + main menu |
+| `/start` (`CommandStart`) | Create `User` if missing (trial); greet; topic menu (Admin if admin); banned → «Доступ закрыт.» |
+| `menu:cars` / `menu:houses` | Ban check first; then `has_active_subscription`; stub or refuse + CTA |
+| `menu:subscription` | Ban → closed; otherwise tariffs list |
+| `tariff:*` / `trial:claim` | Ban check; grant minutes / one-time trial |
+| `menu:back` | Restore section-choice + main menu (Admin if admin) |
+| `/admin` / `menu:admin` | Admin panel (`handlers_admin`); non-admin → «Доступ закрыт.» |
 
 User-facing strings are Russian; keep them consistent unless copy is being redesigned.
 
@@ -78,6 +80,8 @@ User-facing strings are Russian; keep them consistent unless copy is being redes
 | `subscription_end` | Optional datetime — gate via `app/auth.py` |
 | `is_active` | Boolean, default `True` |
 | `trial_used` | Boolean, default `False` — one-time trial consumed |
+| `is_admin` | Boolean, default `False` — DB admin role (OR with `ADMIN_IDS`) |
+| `is_banned` | Boolean, default `False` — full learner access block |
 | `created_at` | utcnow default |
 
 Handlers that need DB must declare `session: AsyncSession` (injected by middleware).
@@ -90,11 +94,12 @@ Use these rules to pick the layer before naming files.
 
 | If the change is… | Prefer |
 |-------------------|--------|
-| New or changed Telegram command / message filter / callback | `app/handlers.py` on existing `router` (or new router module included from `main.py` if splitting grows) |
-| Multi-step dialog / form (states, wait for next input) | `app/states.py` (StatesGroup) + handlers using `FSMContext` |
-| Reply or inline keyboard markup | `app/keyboards.py` builders; wire in handlers |
+| New or changed learner command / message filter / callback | `app/handlers.py` on learner `router` |
+| Admin panel command / callback / search FSM | `app/handlers_admin.py` (+ `AdminSearchForm` in `states.py`) |
+| Multi-step dialog / form (states, wait for next input) | `app/states.py` (StatesGroup) + owning router using `FSMContext` |
+| Reply or inline keyboard markup | `app/keyboards.py` builders; wire in learner or admin handlers |
 | Greeting / Russian copy on `/start` | `app/handlers.py` `cmd_start` |
-| Startup/shutdown hooks, middleware registration, polling | `main.py` |
+| Startup/shutdown hooks, middleware / router registration, polling | `main.py` |
 
 **Do not** put study/subscription business logic only in `main.py`. Keep handlers thin; keyboards and FSM states in their modules.
 
@@ -105,7 +110,7 @@ Use these rules to pick the layer before naming files.
 | Persist user / subscription fields | Extend `User` in `app/database.py`; use injected `session` in handlers — do not invent a parallel store |
 | Create tables on boot | `init_db()` = `create_all` + `_ensure_sqlite_user_columns`; new columns → `_SQLITE_USER_COLUMN_DDL` (no wipe on deploy) |
 | How handlers get a DB session | `app/middlewares.py` `DbSessionMiddleware`; registered on `dp.update` in `main.py` |
-| Token / DB path | `.env` (gitignored): `TG_TOKEN` (required), `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`); document in `.env.example` when adding one |
+| Token / DB path / bootstrap admins | `.env` (gitignored): `TG_TOKEN` (required), `DB_URL` (default SQLite), `ADMIN_IDS` (CSV bootstrap admin ids); document in `.env.example` when adding one |
 | Windows local SSL/IPv4 VPN debug | `main.py` `sys.platform == "win32"` branch only — never copy into Docker/Linux production |
 
 ### Deploy / Docker
@@ -121,27 +126,28 @@ Use these rules to pick the layer before naming files.
 
 | If the change is… | Prefer |
 |-------------------|--------|
-| Registration, subscription gates, critical flows | Extend `tests/` (`test_handlers_subscription.py`, `test_auth.py`, `test_subscription_expiry.py`) with pytest + pytest-asyncio |
+| Registration, subscription gates, admin panel, critical flows | Extend `tests/` (`test_handlers_subscription.py`, `test_handlers_admin.py`, `test_auth.py`, `test_subscription_expiry.py`) with pytest + pytest-asyncio |
 
 ## Domain Hotspots
 
 | Domain | Start here |
 |--------|------------|
 | Process entry / polling / Bot session | `main.py` |
-| Commands, callbacks, message handlers | `app/handlers.py` |
-| User registration `/start` + trial | `app/handlers.py` `cmd_start` + `User.trial_used` |
-| Subscription gate helper | `app/auth.py` `has_active_subscription` |
-| User / subscription schema | `app/database.py` `User` |
+| Learner commands / callbacks | `app/handlers.py` |
+| Admin panel | `app/handlers_admin.py` |
+| User registration `/start` + trial / ban | `app/handlers.py` `cmd_start` + `User.trial_used` / `is_banned` |
+| Subscription / admin / ban helpers | `app/auth.py` |
+| User / subscription / admin schema | `app/database.py` `User` |
 | DB session injection | `app/middlewares.py` → `main.py` middleware register |
 | Keyboards (reply/inline) | `app/keyboards.py` |
 | Subscription expiry cron | `app/scheduler.py` |
-| FSM multi-step flows | `app/states.py` + handlers |
-| Tests | `tests/` |
+| FSM multi-step flows | `app/states.py` + owning handlers (admin search → `handlers_admin`) |
+| Tests | `tests/` (incl. `test_handlers_admin.py`) |
 | Deps | `requirements.txt` |
 | Docker image | `Dockerfile` |
 | Compose / volume / env_file | `docker-compose.yml` |
 | CI / GHCR / VPS deploy | `.github/workflows/deploy.yml` |
-| Secrets / DB URL | `.env` (`TG_TOKEN`, `DB_URL`); optional future `.env.example` |
+| Secrets / DB URL / bootstrap admins | `.env` (`TG_TOKEN`, `DB_URL`, `ADMIN_IDS`); optional future `.env.example` |
 | Product specs / OpenSpec | Sibling `../my-study-bot-meta` when present — cite under Связанные места; do not invent meta files from this skill |
 
 ## Workflow
@@ -155,8 +161,9 @@ Use these rules to pick the layer before naming files.
 2. Search the codebase by domain terms from the task:
    - entry (`Bot`, `Dispatcher`, `start_polling`, `include_router`, win32 session);
    - handlers (`Router`, `CommandStart`, `Command`, `CallbackQuery`, `F.`, `message.answer`);
-   - DB (`User`, `subscription_end`, `is_active`, `trial_used`, `init_db`, `async_session`, `DB_URL`);
-   - auth (`has_active_subscription`, `app/auth.py`);
+   - DB (`User`, `subscription_end`, `is_active`, `trial_used`, `is_admin`, `is_banned`, `init_db`, `async_session`, `DB_URL`);
+   - auth (`has_active_subscription`, `is_admin_user`, `is_banned_user`, `ADMIN_IDS`, `app/auth.py`);
+   - admin panel (`handlers_admin`, `admin:*`, `AdminSearchForm`);
    - middleware (`DbSessionMiddleware`, `session`);
    - keyboards (`InlineKeyboardMarkup` / `ReplyKeyboardMarkup`, builders, `menu:*` / `tariff:*`);
    - scheduler (`check_subscriptions`, `EXPIRY_WINDOW_UNIT`);
@@ -180,7 +187,7 @@ Use these rules to pick the layer before naming files.
 | Look for… | Where / how |
 |-----------|-------------|
 | Bot / Dispatcher / polling | `main.py` |
-| Router registration | `main.py` `include_router` + `app/handlers.py` `router` |
+| Router registration | `main.py` `include_router` × learner + admin routers |
 | `/start` registration | `app/handlers.py` `cmd_start` |
 | User columns / engine | `app/database.py` |
 | Session injection | `app/middlewares.py`; register in `main.py` |

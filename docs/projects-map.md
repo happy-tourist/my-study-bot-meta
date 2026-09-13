@@ -73,12 +73,13 @@ bot: ../my-study-bot
 | `bot.agents` | `../my-study-bot/AGENTS.md` | продукт / стек / домены bot |
 | `bot.main` | `../my-study-bot/main.py` | entry: Bot / Dispatcher / polling |
 | `bot.app` | `../my-study-bot/app/` | пакет приложения |
-| `bot.handlers` | `../my-study-bot/app/handlers.py` | Router handlers |
-| `bot.auth` | `../my-study-bot/app/auth.py` | `has_active_subscription` gate helper |
+| `bot.handlers` | `../my-study-bot/app/handlers.py` | Learner Router handlers (`/start`, topic menu, tariffs, gate) |
+| `bot.handlers_admin` | `../my-study-bot/app/handlers_admin.py` | Admin panel Router (`/admin`, lists, search, ban/roles/tariffs) |
+| `bot.auth` | `../my-study-bot/app/auth.py` | Subscription gate + admin/ban helpers (`ADMIN_IDS`) |
 | `bot.database` | `../my-study-bot/app/database.py` | engine, User model, `init_db` |
 | `bot.middlewares` | `../my-study-bot/app/middlewares.py` | `DbSessionMiddleware` |
-| `bot.keyboards` | `../my-study-bot/app/keyboards.py` | Inline topic-menu builders (`menu:*`) |
-| `bot.states` | `../my-study-bot/app/states.py` | FSM `StatesGroup` |
+| `bot.keyboards` | `../my-study-bot/app/keyboards.py` | Inline topic-menu + admin builders (`menu:*`, `admin:*`) |
+| `bot.states` | `../my-study-bot/app/states.py` | FSM `StatesGroup` (`AdminSearchForm`) |
 | `bot.scheduler` | `../my-study-bot/app/scheduler.py` | APScheduler expiry job (`check_subscriptions`) |
 | `bot.tests` | `../my-study-bot/tests/` | pytest suite |
 | `bot.data` | `../my-study-bot/data/` | SQLite volume (`db.sqlite3`) |

@@ -2,9 +2,9 @@
 name: work-with-config
 description: >-
   Use when adding, changing, reviewing, or debugging my-study-bot config:
-  load_dotenv in main.py / app/database.py, TG_TOKEN / DB_URL, win32
+  load_dotenv in main.py / app/database.py, TG_TOKEN / DB_URL / ADMIN_IDS, win32
   AiohttpSession SSL+IPv4 bypass vs clean Bot(token=…), Dispatcher /
-  DbSessionMiddleware / init_db / include_router / scheduler startup-shutdown
+  DbSessionMiddleware / init_db / include_router (learner + admin) / scheduler startup-shutdown
   hooks / polling startup, or keeping business logic out of main.py. Not for
   handler product flows, expiry window math, or Docker deploy secrets alone.
 ---
@@ -38,10 +38,10 @@ Related package: `../my-study-bot-meta` (docs, OpenSpec, skills).
 | Case | Preferred pattern |
 | --- | --- |
 | Env load | `load_dotenv()` in `main.py` **and** `app/database.py` |
-| Secrets / contour | Env only — `TG_TOKEN`, `DB_URL`; never hardcode; do not commit `.env` / `.env.server` |
+| Secrets / contour | Env only — `TG_TOKEN`, `DB_URL`, `ADMIN_IDS`; never hardcode; do not commit `.env` / `.env.server` |
 | Bot construction | `win32`: custom `AiohttpSession` (SSL verify off + IPv4); else `Bot(token=…)` |
 | SSL bypass | **Local Windows VPN/debug only** — never copy into Linux / Docker / production |
-| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` → hooks (`start_scheduler` / `stop_scheduler`) → `start_polling` |
+| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` (learner + admin) → hooks (`start_scheduler` / `stop_scheduler`) → `start_polling` |
 | Business logic | Handlers / keyboards / states / models / `app/scheduler.py` — **not** only inside `main.py` |
 | DB default | `DB_URL` default `sqlite+aiosqlite:///data/db.sqlite3` |
 
@@ -74,6 +74,7 @@ Rules:
 | --- | --- |
 | `TG_TOKEN` | Telegram Bot API token (required) |
 | `DB_URL` | SQLAlchemy async URL (default `sqlite+aiosqlite:///data/db.sqlite3`) |
+| `ADMIN_IDS` | CSV of bootstrap Telegram user ids that are always admins (OR with `User.is_admin`) |
 
 `data/` is gitignored and mounted in Compose (`./data:/app/data`) so SQLite
 survives container restarts.
@@ -263,7 +264,7 @@ docker compose up -d
 | Process entry / Bot / polling | `main.py` |
 | DB URL, engine, models, `init_db` | `app/database.py` |
 | Session injection | `app/middlewares.py` (`DbSessionMiddleware`) |
-| Routers / commands | `app/handlers.py` |
+| Routers / commands | `app/handlers.py` (learner), `app/handlers_admin.py` (admin) |
 | High-level notes | `AGENTS.md` → Config And Env / How Startup Is Organized |
 | Deploy cwd / Compose | `docker-compose.yml`, `.github/workflows/deploy.yml` |
 

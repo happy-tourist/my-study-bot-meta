@@ -7,7 +7,7 @@ description: Use when aligning branch and working-tree changes against the activ
 
 Perform a read-only code alignment audit for the Telegram study bot (`my-study-bot`) and report findings in Russian across three tiers: hard gaps, warnings, and recommendations.
 
-Stack context: aiogram 3.22 (Router / Dispatcher / long-polling), SQLAlchemy 2.0 + aiosqlite, python-dotenv, Python 3.13 in Docker (`python:3.13-slim`). Entry: `main.py` → `asyncio.run(main())` → `Bot` / `Dispatcher` / `dp.start_polling(bot)`. Windows-only SSL verify bypass + IPv4 `AiohttpSession` lives strictly under `sys.platform == "win32"`; Linux / Docker / VPS use clean `Bot(token=…)`. Authoritative user/subscription data: SQLite (`DB_URL`, default `sqlite+aiosqlite:///data/db.sqlite3`); handlers receive `session: AsyncSession` via `DbSessionMiddleware`. Users interact in Telegram only — no HTTP API / admin UI in this package.
+Stack context: aiogram 3.22 (Router / Dispatcher / long-polling), SQLAlchemy 2.0 + aiosqlite, python-dotenv, Python 3.13 in Docker (`python:3.13-slim`). Entry: `main.py` → `asyncio.run(main())` → `Bot` / `Dispatcher` / `dp.start_polling(bot)`. Windows-only SSL verify bypass + IPv4 `AiohttpSession` lives strictly under `sys.platform == "win32"`; Linux / Docker / VPS use clean `Bot(token=…)`. Authoritative user/subscription data: SQLite (`DB_URL`, default `sqlite+aiosqlite:///data/db.sqlite3`); handlers receive `session: AsyncSession` via `DbSessionMiddleware`. Users interact in Telegram only — no HTTP API / admin web UI in this package (admin UX is Telegram `/admin` via `app/handlers_admin.py`).
 
 **Paths:** this skill currently lives in **this bot repo** at `.agents/skills/bot/` (temporary). Canonical skills/OpenSpec will move to **my-study-bot-meta** when present (`project-map.md` key `my-study-bot-meta` → sibling `../my-study-bot-meta/.agents/skills/bot/`). Runtime `app/…`, `main.py` paths are relative to **this repository root**. Outside align-only mode, the agent runs `python main.py` / `pip install -r requirements.txt` (and Docker build/compose when verifying deploy) from this repo root; fix failures before claiming done.
 
@@ -151,7 +151,7 @@ Example shape (FSM — when AC adds it):
 
 Method presence or "looks compatible" alone is insufficient. Track each contract fact separately so one correct layer cannot hide another mismatch.
 
-Prefer extending existing `User` + middleware session + `app/handlers.py` / `states.py` / `keyboards.py` rather than inventing parallel data paths or putting product logic only in `main.py` — unless AC explicitly says otherwise.
+Prefer extending existing `User` + middleware session + `app/handlers.py` / `handlers_admin.py` / `states.py` / `keyboards.py` rather than inventing parallel data paths or putting product logic only in `main.py` — unless AC explicitly says otherwise.
 
 Use `AGENTS.md` and strong in-repo analogues for conventions; never as replacements for requirement evidence.
 
@@ -174,7 +174,7 @@ git diff --stat <base>...HEAD
 git diff <base>...HEAD
 ```
 
-Read relevant untracked files and full current Python modules when surrounding behavior matters. Prefer `main.py`, `app/handlers.py`, `app/database.py`, `app/middlewares.py`, `app/keyboards.py`, `app/states.py`, deploy (`Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml`), and env notes (`AGENTS.md`; no committed `.env.example` yet). Do not ignore unstaged work.
+Read relevant untracked files and full current Python modules when surrounding behavior matters. Prefer `main.py`, `app/handlers.py`, `app/handlers_admin.py`, `app/database.py`, `app/middlewares.py`, `app/keyboards.py`, `app/states.py`, `app/auth.py`, deploy (`Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml`), and env notes (`AGENTS.md`; no committed `.env.example` yet). Do not ignore unstaged work.
 
 ## Load Planning Scope
 
@@ -203,7 +203,7 @@ Wrong `User` field source/constraint, missing `/start` upsert, handler without i
 
 Score **Постановка: N/10** only from hard omissions (`missing` / `docs-only` / `code-only` / `extra`), not from Warnings or Recommendations.
 
-Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert + one-time trial + topic menu exists; Cars/Houses gated via `app/auth.py` `has_active_subscription`; Subscription shows tariffs (grant without payment); study **content** still stubs; `app/states.py` still a stub; expiry is on a temporary minute harness. Do not treat `states.py` alone as fulfilment of study AC; do not treat topic stubs as paid lesson content.
+Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert + one-time trial + topic menu exists; Cars/Houses gated via `app/auth.py` `has_active_subscription`; ban + admin panel (`handlers_admin`, `ADMIN_IDS` / `is_admin` / `is_banned`) exist; Subscription shows tariffs (grant without payment); study **content** still stubs; expiry is on a temporary minute harness. Do not treat topic stubs as paid lesson content.
 
 ## Axis B — Codebase
 
@@ -213,15 +213,16 @@ Find strong untouched analogues for the same domain/flow. Prefer same layer:
 |---------|---------|
 | Entry / Bot / polling | `main.py` (`load_dotenv`, win32 session branch, `Dispatcher`, middleware, `init_db`, `include_router`, `start_polling`) |
 | Handlers / commands | `app/handlers.py` (`Router`, `CommandStart`, tariffs / gate callbacks) |
-| Auth / gate helper | `app/auth.py` (`has_active_subscription`) |
-| User model / engine | `app/database.py` (`User` incl. `trial_used`, `async_session`, `init_db`, `_SQLITE_USER_COLUMN_DDL`) |
+| Admin panel | `app/handlers_admin.py` (`/admin`, lists, search, mutations) |
+| Auth / gate helper | `app/auth.py` (`has_active_subscription`, admin/ban helpers) |
+| User model / engine | `app/database.py` (`User` incl. `trial_used` / `is_admin` / `is_banned`, `async_session`, `init_db`, `_SQLITE_USER_COLUMN_DDL`) |
 | DB session injection | `app/middlewares.py` (`DbSessionMiddleware`) |
-| Keyboards | `app/keyboards.py` (topic menu, tariffs, gate CTA) |
+| Keyboards | `app/keyboards.py` (topic menu, tariffs, gate CTA, admin) |
 | Scheduler | `app/scheduler.py` (expiry job; temporary minute harness) |
-| FSM | `app/states.py` |
-| Tests | `tests/` (expiry, auth, trial/tariffs/gate) |
+| FSM | `app/states.py` (`AdminSearchForm`) |
+| Tests | `tests/` (expiry, auth, trial/tariffs/gate, admin) |
 | Deps | `requirements.txt` (aiogram 3.22, SQLAlchemy, aiosqlite, python-dotenv) |
-| Env | local `.env` / server `.env` (gitignored); document `TG_TOKEN`, `DB_URL` — do not commit secrets |
+| Env | local `.env` / server `.env` (gitignored); document `TG_TOKEN`, `DB_URL`, `ADMIN_IDS` — do not commit secrets |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml` |
 | Meta / OpenSpec | `../my-study-bot-meta` when present |
 
@@ -312,7 +313,7 @@ Do not run tests. Do not double-count the same issue as both defect and regressi
 
 ### Changed handlers, FSM, and message contract
 
-Refactors of handler/FSM/keyboard surfaces often break Telegram UX quietly. When a changed file touches `app/handlers.py`, `app/states.py`, `app/keyboards.py`, or router wiring in `main.py` — audit the user-facing contract separately from internal helpers.
+Refactors of handler/FSM/keyboard surfaces often break Telegram UX quietly. When a changed file touches `app/handlers.py`, `app/handlers_admin.py`, `app/states.py`, `app/keyboards.py`, or router wiring in `main.py` — audit the user-facing contract separately from internal helpers.
 
 For every removed, renamed, or reshaped command/state/keyboard, independently verify:
 

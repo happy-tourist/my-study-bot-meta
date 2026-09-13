@@ -52,7 +52,7 @@ Telegram update
 |-------|--------|------|
 | `DbSessionMiddleware` | `app/middlewares.py` | `async with async_session()` → `data["session"]` → await handler → session closes |
 | Registration | `main.py` | `dp.update.middleware(DbSessionMiddleware())` before polling |
-| Handler consumption | `app/handlers.py` | declare `session: AsyncSession`; use injected session |
+| Handler consumption | `app/handlers.py`, `app/handlers_admin.py` | declare `session: AsyncSession`; use injected session |
 
 Today only `DbSessionMiddleware` exists. Future middlewares (logging, auth /
 subscription gate) should follow the preferred order above.

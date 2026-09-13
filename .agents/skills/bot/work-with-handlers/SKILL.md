@@ -34,7 +34,7 @@ must change.
 
 | Topic | Pattern |
 |-------|---------|
-| Where | `app/handlers.py` — single `router = Router()` |
+| Where | `app/handlers.py` (learner `router`) + `app/handlers_admin.py` (admin `router`) |
 | Wire-up | `main.py` → `dp.include_router(router)` |
 | Commands | `@router.message(CommandStart())` / `Command("…")` |
 | Text / media | `@router.message(F.text)` / other `F` filters |
@@ -49,7 +49,7 @@ must change.
 | Do | Don't |
 |----|--------|
 | Keep handlers thin (reply / DB upsert / call keyboard) | Put keyboard markup trees or FSM state graphs only inside handlers |
-| Add handlers on the existing `router` in `app/handlers.py` | Invent a parallel HTTP API or second Dispatcher |
+| Add handlers on the existing `router` in `app/handlers.py` (or a sibling admin router under `app/` when the surface grows — still `include_router` from `main.py`) | Invent a parallel HTTP API or second Dispatcher |
 | Declare `session: AsyncSession` when the handler needs DB | Open a new engine/session inside the handler |
 | Put reply/inline keyboards in `app/keyboards.py` | Inline huge `InlineKeyboardMarkup([...])` blobs in every handler |
 | Put multi-step dialogs in `app/states.py` + FSM handlers | Encode long wizards as nested if/else in one command handler |
@@ -74,10 +74,8 @@ async def cmd_start(message: Message, session: AsyncSession):
     ...
 ```
 
-- One module-level `router`; include it once from `main.py`.
-- Prefer extending this router until product clearly needs split routers
-  (then still `include_router` from `main.py` — do not start a second bot
-  process).
+- One module-level `router` in `app/handlers.py`; include it from `main.py`.
+- Admin panel lives in sibling `app/handlers_admin.py` (`include_router` from `main.py`) when the operator UX is large — do not start a second bot process.
 
 ### Filters
 

@@ -2,7 +2,7 @@
 name: work-with-env-deploy
 description: >-
   Use when changing bot env vars, Docker Compose, VPS deploy, GHCR image push,
-  or DB_URL / TG_TOKEN for my-study-bot — .env / .env.server, Dockerfile,
+  or DB_URL / TG_TOKEN / ADMIN_IDS for my-study-bot — .env / .env.server, Dockerfile,
   docker-compose.yml, or .github/workflows/deploy.yml.
 ---
 
@@ -33,6 +33,7 @@ Deploy target: VPS under `/home/deploy/my-study-bot`, Docker Compose + image fro
 |----------|------|-------|--------------------|
 | `TG_TOKEN` | Telegram Bot API token (required) | `.env` | `/home/deploy/my-study-bot/.env` |
 | `DB_URL` | SQLAlchemy async URL | default `sqlite+aiosqlite:///data/db.sqlite3` | same default; override in server `.env` if needed |
+| `ADMIN_IDS` | CSV bootstrap admin Telegram ids | e.g. `463353358` | same on VPS `.env` (OR with `User.is_admin`) |
 
 No committed `.env.example` yet — document vars here / in `AGENTS.md`; add `.env.example` when convenient. Do not commit secrets (`.env`, `.env.server` are gitignored).
 
@@ -91,7 +92,7 @@ CI does **not** ship `.env` or `data/` — those live only on the VPS. Compose f
 ### Repo / Actions / VPS checklist
 
 - GitHub secrets: `SSH_HOST`, `SSH_USER`, `SSH_KEY` (workflow also uses `GITHUB_TOKEN` for GHCR).
-- On VPS once: Docker + Compose, directory `/home/deploy/my-study-bot` with `docker-compose.yml` and `.env` (`TG_TOKEN`, optional `DB_URL`), writable `./data` for SQLite.
+- On VPS once: Docker + Compose, directory `/home/deploy/my-study-bot` with `docker-compose.yml` and `.env` (`TG_TOKEN`, optional `DB_URL` / `ADMIN_IDS`), writable `./data` for SQLite.
 - Confirm `.dockerignore` keeps `.env` and `data/` out of the image.
 
 ## Files map

@@ -191,13 +191,14 @@ when they exist and conflict on a detail.
 - Process entry: `main.py` → `asyncio.run(main())` → `dp.start_polling(bot)`.
 - Startup order: `load_dotenv()` → build `Bot` → `Dispatcher` +
   `DbSessionMiddleware` on updates → `await init_db()` →
-  `dp.include_router(router)` from `app.handlers` → startup/shutdown hooks →
-  polling.
-- Prefer keeping product handlers in `app/handlers.py` (or future routers under
-  `app/`), not stuffing study/subscription logic only into `main.py`.
+  `dp.include_router` for learner (`app.handlers`) and admin (`app.handlers_admin`) →
+  startup/shutdown hooks → polling.
+- Prefer keeping product handlers in `app/handlers.py` / `app/handlers_admin.py`
+  (or future routers under `app/`), not stuffing study/subscription/admin logic
+  only into `main.py`.
 
 **Violations when:** business logic / handlers live only in `main.py` while
-`app/handlers.py` already owns that surface; a second ad-hoc polling/bot
+`app/handlers.py` / `app/handlers_admin.py` already own that surface; a second ad-hoc polling/bot
 bootstrap bypasses the existing Dispatcher + middleware path without an
 explicit request.
 
@@ -263,18 +264,20 @@ Persistence → SQLAlchemy AsyncSession → SQLite under data/
 | Area | Location | Owns |
 |------|----------|------|
 | Entry | `main.py` | Bot, Dispatcher, polling, win32 session branch |
-| Handlers | `app/handlers.py` | Router / commands |
+| Handlers | `app/handlers.py` | Learner Router / commands |
+| Admin | `app/handlers_admin.py` | Admin panel Router |
+| Auth | `app/auth.py` | subscription + admin/ban helpers |
 | DB | `app/database.py` | engine, `User`, `init_db` |
 | Middleware | `app/middlewares.py` | session injection |
 | Keyboards | `app/keyboards.py` | reply / inline builders |
-| FSM | `app/states.py` | FSM states |
+| FSM | `app/states.py` | FSM states (`AdminSearchForm`) |
 
 **Do not:** invent a parallel DB path; put study logic only in `main.py`;
 invert layers (e.g. models importing Telegram handlers unnecessarily).
 
 ### Env, secrets, deploy
 
-- Env vars: `TG_TOKEN` (required), `DB_URL` (optional default above).
+- Env vars: `TG_TOKEN` (required), `DB_URL` (optional default above), `ADMIN_IDS` (CSV bootstrap admins).
 - Do not commit secrets (`.env`, `.env.server` are gitignored).
 - Deploy: GHCR image `ghcr.io/happy-tourist/my-study-bot:latest`, Compose
   service `bot` with `env_file: .env` and volume `./data:/app/data`, VPS cwd
@@ -357,6 +360,8 @@ Use only to decide **where to look harder**, never to drop a skill from Always i
 |----------------------|----------------|
 | `main.py` | Bot conventions (startup order, win32 SSL branch, Dispatcher wiring) |
 | `app/handlers.py` | `work-with-handlers`, `work-with-messages`, `work-with-study` |
+| `app/handlers_admin.py` | `work-with-handlers`, `bot-work-with-auth`, `work-with-fsm` |
+| `app/auth.py` | `bot-work-with-auth` |
 | `app/middlewares.py` | `work-with-middleware`, session injection |
 | `app/database.py` | `work-with-models`, `work-with-database` |
 | `app/states.py` | `work-with-fsm` |

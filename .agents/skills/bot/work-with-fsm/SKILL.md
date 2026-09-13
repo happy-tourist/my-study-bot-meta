@@ -4,18 +4,18 @@ description: >-
   Use when adding, changing, reviewing, or debugging aiogram FSM dialogs in
   my-study-bot: StatesGroup / State in app/states.py, FSMContext in handlers,
   state filters, set/get/update/clear data, MemoryStorage vs Redis, or
-  multi-step study/subscription forms (not SQLite User truth in FSM only).
+  multi-step study/subscription/admin forms (not SQLite User truth in FSM only).
 ---
 
 # Work With FSM
 
 Use this skill for **aiogram 3 dialog / session state** in `my-study-bot`.
 
-FSM state definitions live in **`app/states.py`**. Handlers that drive steps live in **`app/handlers.py`** (or future routers). Storage is configured on **`Dispatcher`** in **`main.py`**. Do **not** treat FSM data as the source of truth for `User` / subscription fields — persist those in SQLite via the injected `session`.
+FSM state definitions live in **`app/states.py`**. Handlers that drive steps live in **`app/handlers.py`** (learner) or **`app/handlers_admin.py`** (admin search). Storage is configured on **`Dispatcher`** in **`main.py`**. Do **not** treat FSM data as the source of truth for `User` / subscription fields — persist those in SQLite via the injected `session`.
 
 Skills path (this package): `.agents/skills/bot/`. Runtime paths below are relative to this bot repo root. Canonical OpenSpec / shared skills may also live in sibling `my-study-bot-meta` when that package exists.
 
-Coordinate with sibling skills when they exist: `work-with-handlers`, `work-with-keyboards`, `work-with-database`.
+Coordinate with sibling skills when they exist: `work-with-handlers`, `work-with-keyboards`, `work-with-database`, `bot-work-with-auth`.
 
 ## Map Of Pieces
 
@@ -23,12 +23,13 @@ Coordinate with sibling skills when they exist: `work-with-handlers`, `work-with
 |-------|------|------|
 | Storage | `main.py` | `Dispatcher(storage=…)` — default MemoryStorage if omitted |
 | States | `app/states.py` | `StatesGroup` + `State` definitions for multi-step flows |
-| Handlers | `app/handlers.py` | Enter / step / cancel; `FSMContext`; state filters |
+| Learner handlers | `app/handlers.py` | Enter / step / cancel for learner forms |
+| Admin handlers | `app/handlers_admin.py` | Admin search FSM (`AdminSearchForm`) |
 | Keyboards | `app/keyboards.py` | Reply / inline UI for form steps |
-| Persistence | `app/database.py` | `User` model — durable fields (`subscription_end`, `is_active`, …) |
+| Persistence | `app/database.py` | `User` model — durable fields (`subscription_end`, `is_active`, `is_admin`, …) |
 | Session inject | `app/middlewares.py` | `DbSessionMiddleware` → handler `session: AsyncSession` |
 
-Today: `app/states.py` is a stub (imports `FSMContext` only); `/start` upserts `User`, shows the inline topic menu, and does **not** use FSM. Topic-menu navigation is callback `edit_text`, not states. `Dispatcher()` in `main.py` uses aiogram’s default in-memory storage.
+Today: `app/states.py` defines `AdminSearchForm.waiting_query` for admin user search; topic-menu navigation remains callback `edit_text` (not FSM). Learner study/subscription multi-step forms are still future. `Dispatcher()` in `main.py` uses aiogram’s default in-memory storage.
 
 ## Lifecycle Flow
 
@@ -65,10 +66,14 @@ user sends /command or callback that starts a form
 
 ## Current Scaffold
 
-### `app/states.py` (stub → grow here)
+### `app/states.py` (grow here)
 
 ```python
 from aiogram.fsm.state import State, StatesGroup
+
+
+class AdminSearchForm(StatesGroup):
+    waiting_query = State()
 
 
 class SubscribeForm(StatesGroup):
@@ -81,10 +86,26 @@ class StudyForm(StatesGroup):
     waiting_answer = State()
 ```
 
-- One `StatesGroup` per user-facing multi-step flow (study, subscription, …).
+- One `StatesGroup` per user-facing multi-step flow (admin search, study, subscription, …).
 - Keep group names product-oriented; avoid a single mega-group for unrelated dialogs.
+- Drive admin search steps from `app/handlers_admin.py`; future learner forms from `app/handlers.py`.
 
-### Handler pattern (`app/handlers.py`)
+### Handler pattern (`app/handlers_admin.py` — admin search)
+
+```python
+from aiogram.fsm.context import FSMContext
+
+from app.states import AdminSearchForm
+
+
+@admin_only.callback_query(F.data == kb.ADMIN_SEARCH)
+async def admin_search_start(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await state.set_state(AdminSearchForm.waiting_query)
+    await callback.message.edit_text("Введите id или username:")
+```
+
+### Handler pattern (`app/handlers.py` — future learner forms)
 
 ```python
 from aiogram.fsm.context import FSMContext
@@ -191,5 +212,5 @@ Keyboards for steps belong in `app/keyboards.py`; keep handlers thin.
 - Handlers / commands: `.agents/skills/bot/work-with-handlers/SKILL.md` (when present)
 - Keyboards: `.agents/skills/bot/work-with-keyboards/SKILL.md` (when present)
 - Database / `User`: `.agents/skills/bot/work-with-database/SKILL.md` (when present)
-- Bot overview: `AGENTS.md` (handlers, states stubs, SQLite)
+- Bot overview: `AGENTS.md` (handlers, `AdminSearchForm`, SQLite)
 - Meta OpenSpec / skills index: `my-study-bot-meta/.agents/AGENTS.md` (when meta exists)

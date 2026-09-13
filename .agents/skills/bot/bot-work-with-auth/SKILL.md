@@ -56,9 +56,10 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at` |
 | DB init | `app/database.py` `init_db()` | `create_all` + `_ensure_sqlite_user_columns` (DDL in `_SQLITE_USER_COLUMN_DDL`) |
 | Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; greet + inline topic menu |
-| Gate | `app/auth.py` + handlers | `has_active_subscription`; Cars/Houses gated; Subscription/tariffs always open |
+| Gate | `app/auth.py` + handlers | `has_active_subscription`; `is_admin_user` / `is_banned_user`; Cars/Houses gated; ban → access closed before subscription CTA |
+| Admin | `app/handlers_admin.py` | `/admin` panel; bootstrap `ADMIN_IDS` + `User.is_admin` |
 | Expiry job | `app/scheduler.py` | Temporary minute windows + minutely cron (restore day + 10:00 MSK with ЮKassa) |
-| Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`) |
+| Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`), `ADMIN_IDS` (CSV bootstrap admin ids) |
 | Storage | `data/db.sqlite3` | Runtime SQLite (gitignored; Compose volume `./data:/app/data`) |
 
 Prefer extending the existing `User` model and middleware session injection
@@ -118,7 +119,9 @@ File: `app/database.py`.
 | `id` | `BigInteger` PK | Telegram user id — **the** identity key |
 | `username` | `String(64)` \| None | Snapshot from Telegram; may change; not for auth |
 | `subscription_end` | `DateTime` \| None | Access until this instant; `None` = no paid access |
-| `is_active` | `bool` (default `True`) | Soft disable / ban without deleting the row |
+| `is_active` | `bool` (default `True`) | Soft disable for **subscription** expiry / revoke (scheduler flips this); not the ban flag |
+| `is_admin` | `bool` (default `False`) | DB admin role; OR with bootstrap `ADMIN_IDS` |
+| `is_banned` | `bool` (default `False`) | Full learner access block («доступ закрыт»); independent of `is_active` |
 | `trial_used` | `bool` (default `False`) | One-time free trial already consumed |
 | `created_at` | `DateTime` | Registration timestamp |
 
@@ -131,6 +134,8 @@ class User(Base):
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 

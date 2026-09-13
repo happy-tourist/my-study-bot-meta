@@ -3,9 +3,9 @@ name: work-with-models
 description: >-
   Use when creating, changing, reviewing, or debugging SQLAlchemy ORM models in
   the my-study-bot Telegram study bot — DeclarativeBase, Mapped / mapped_column,
-  User table users, subscription_end / is_active / trial_used fields, init_db
-  create_all + _SQLITE_USER_COLUMN_DDL ensure, or extending persistence for subscription / study without parallel
-  stores.
+  User table users, subscription_end / is_active / trial_used / is_admin / is_banned
+  fields, init_db create_all + _SQLITE_USER_COLUMN_DDL ensure, or extending
+  persistence for subscription / study / admin without parallel stores.
 ---
 
 # Work With Models
@@ -56,6 +56,8 @@ class User(Base):
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
@@ -68,9 +70,11 @@ class User(Base):
 | `subscription_end` | Subscription expiry | `DateTime`, nullable — gate in handlers / `app/auth.py` |
 | `is_active` | Active flag | `Boolean`, default `True` |
 | `trial_used` | One-time free trial consumed | `Boolean`, default `False` |
+| `is_admin` | DB admin role | `Boolean`, default `False` — OR with bootstrap `ADMIN_IDS` |
+| `is_banned` | Full learner access block | `Boolean`, default `False` — independent of `is_active` |
 | `created_at` | Row created | `DateTime`, `utcnow` default |
 
-Prefer **extend `User`** for subscription/study persistence rather than parallel
+Prefer **extend `User`** for subscription/study/admin persistence rather than parallel
 stores or a second user table.
 
 ### Column types (stable)
@@ -81,6 +85,8 @@ stores or a second user table.
 | `subscription_end` | `DateTime` | When subscription ends (`None` = none / unset) |
 | `is_active` | `Boolean` | Soft active flag |
 | `trial_used` | `Boolean` | One-time free trial consumed |
+| `is_admin` | `Boolean` | DB admin role (OR with `ADMIN_IDS`) |
+| `is_banned` | `Boolean` | Learner access block («доступ закрыт») |
 
 Keep these encodings stable; change only with handlers that read/write them.
 
@@ -108,6 +114,8 @@ class User(Base):
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
@@ -157,7 +165,7 @@ async def init_db():
         await conn.run_sync(_ensure_sqlite_user_columns)
 ```
 
-- **Today:** `create_all` creates missing tables; `_ensure_sqlite_user_columns` runs idempotent `ALTER TABLE` for names listed in `_SQLITE_USER_COLUMN_DDL` (e.g. `trial_used`) so the Compose volume on VPS picks up new columns on container start without SSH wipe.
+- **Today:** `create_all` creates missing tables; `_ensure_sqlite_user_columns` runs idempotent `ALTER TABLE` for names listed in `_SQLITE_USER_COLUMN_DDL` (e.g. `trial_used`, `is_admin`, `is_banned`) so the Compose volume on VPS picks up new columns on container start without SSH wipe.
 - **When adding a column:** update the `User` model **and** append DDL to `_SQLITE_USER_COLUMN_DDL`. Cover with `tests/test_database_schema.py`-style ensure test. Do **not** wipe `data/db.sqlite3` on every deploy — wipe only for intentional reset.
 
 ## Do
@@ -167,7 +175,7 @@ async def init_db():
 - Prefer extending `User` over parallel stores for subscription/study data.
 - Use `DeclarativeBase` + `Mapped` + `mapped_column` consistently.
 - Use `BigInteger` for Telegram `id`, `DateTime` for `subscription_end`,
-  `Boolean` for `is_active` / `trial_used`.
+  `Boolean` for `is_active` / `trial_used` / `is_admin` / `is_banned`.
 - Declare `session: AsyncSession` in handlers; rely on `DbSessionMiddleware`.
 - Register new `users` columns in `_SQLITE_USER_COLUMN_DDL` when changing the model.
 
@@ -185,8 +193,8 @@ async def init_db():
 
 When changing models:
 
-1. Columns still match handler expectations (`id`, `subscription_end`, `is_active`, `trial_used`, …).
-2. Types stay: Telegram id `BigInteger`, `subscription_end` `DateTime`, `is_active` / `trial_used` `Boolean`.
+1. Columns still match handler expectations (`id`, `subscription_end`, `is_active`, `trial_used`, `is_admin`, `is_banned`, …).
+2. Types stay: Telegram id `BigInteger`, `subscription_end` `DateTime`, `is_active` / `trial_used` / `is_admin` / `is_banned` `Boolean`.
 3. Business rules stay in handlers / study helpers — models remain persistence-only.
 4. Prefer extend `User`; justify any new table.
 5. If columns change on an existing DB: model + `_SQLITE_USER_COLUMN_DDL` (+ schema ensure test); no deploy wipe.

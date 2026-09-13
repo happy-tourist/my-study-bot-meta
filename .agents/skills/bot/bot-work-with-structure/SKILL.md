@@ -51,27 +51,29 @@ Sibling meta: resolve via `project-map.md` key `my-study-bot-meta`
 
 | Layer | Path | Role |
 |-------|------|------|
-| Entry | `main.py` | `Bot`, `Dispatcher`, polling, win32 session; wire middleware + router |
-| Handlers | `app/handlers.py` | Routers / commands / callbacks (thin orchestration) |
-| Auth helper | `app/auth.py` | `has_active_subscription` for gated topic sections |
+| Entry | `main.py` | `Bot`, `Dispatcher`, polling, win32 session; wire middleware + routers |
+| Handlers | `app/handlers.py` | Learner routers / commands / callbacks (thin orchestration) |
+| Admin handlers | `app/handlers_admin.py` | Admin panel router (`/admin`, lists, search, card mutations) |
+| Auth helper | `app/auth.py` | `has_active_subscription`, `is_admin_user` / `is_banned_user`, `ADMIN_IDS` |
 | Database | `app/database.py` | Engine, `async_session`, `User` model, `init_db()` |
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` injects `session: AsyncSession` |
-| Keyboards | `app/keyboards.py` | Inline builders (`main_menu_kb`, `tariffs_kb`, `menu:*` / `tariff:*`) |
+| Keyboards | `app/keyboards.py` | Inline builders (topic menu, tariffs, gate CTA, admin `admin:*`) |
 | Scheduler | `app/scheduler.py` | APScheduler expiry job (`check_subscriptions`); start/stop from `main` hooks |
-| FSM | `app/states.py` | aiogram FSM states / groups |
-| Tests | `tests/` | pytest + pytest-asyncio (expiry, auth, trial/tariffs/gate) |
+| FSM | `app/states.py` | aiogram FSM states / groups (`AdminSearchForm`) |
+| Tests | `tests/` | pytest + pytest-asyncio (expiry, auth, trial/tariffs/gate, admin) |
 | Runtime DB | `data/` | SQLite file (gitignored; Compose volume `./data:/app/data`) |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/` | Image + VPS compose deploy |
 
-Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`). No committed `.env.example` yet — document when adding.
+Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`), `ADMIN_IDS` (CSV bootstrap admin Telegram ids). No committed `.env.example` yet — document when adding.
 
 ### Layer roles (detail)
 
 | Layer | Owns | Does not own |
 |-------|------|--------------|
-| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include router, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
-| **`handlers.py`** | Filters, handlers, greetings / study flow UX, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs |
-| **`auth.py`** | Shared subscription gate helper (`has_active_subscription`) | Telegram send; keyboard markup trees |
+| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include learner + admin routers, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
+| **`handlers.py`** | Learner filters/handlers, greetings / study flow UX, ban-aware menu, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs; admin card mutations |
+| **`handlers_admin.py`** | Admin panel Router (`IsAdminFilter`), stats/lists/search FSM, ban/roles/tariff grants | Learner topic stubs; engine/SSL; scheduler |
+| **`auth.py`** | Subscription gate + admin/ban helpers (`has_active_subscription`, `is_admin_user`, `is_banned_user`, `parse_admin_ids`) | Telegram send; keyboard markup trees |
 | **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` (`create_all` + `_ensure_sqlite_user_columns` / `_SQLITE_USER_COLUMN_DDL`) | Telegram replies; Router registration |
 | **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic; background jobs |
 | **`keyboards.py`** | Shared reply/inline builders | DB access; long handler bodies |
@@ -93,10 +95,10 @@ main.py → Bot / Dispatcher / middleware / init_db / include_router
 Allowed:
 
 ```text
-main.py        →  app.handlers, app.database, app.middlewares, app.scheduler (wiring only)
+main.py        →  app.handlers, app.handlers_admin, app.database, app.middlewares, app.scheduler (wiring only)
 middlewares    →  app.database (async_session factory)
-handlers       →  app.database (models), app.auth, app.keyboards, app.states; session via injection
-auth           →  app.database (User type only; no Telegram I/O)
+handlers / handlers_admin →  app.database (models), app.auth, app.keyboards, app.states; session via injection
+auth           →  app.database (User type only; no Telegram I/O; may read ADMIN_IDS env)
 scheduler      →  app.database (async_session / User), aiogram Bot; own session in job
 keyboards      →  aiogram types only (no DB)
 states         →  aiogram FSM only (no DB / no handlers)
@@ -118,12 +120,12 @@ database       →  SQLAlchemy / aiosqlite / dotenv (no aiogram handlers)
 
 Decide in this order:
 
-1. **New command / callback?** → `app/handlers.py` (or split routers later under `app/` matching peers); register via existing `router` included from `main.py`.
+1. **New learner command / callback?** → `app/handlers.py` on the learner `router`. **Admin panel?** → `app/handlers_admin.py` (nested `admin_only` + `IsAdminFilter`); both routers `include_router` from `main.py`.
 2. **Need DB in handler?** → declare `session: AsyncSession`; middleware injects it — do not open a second session.
-3. **New user / subscription field?** → extend `User` in `app/database.py`; migrate carefully if SQLite already has rows (`create_all` does not alter columns).
-4. **Reply / inline keyboard?** → builder in `app/keyboards.py`; import from handlers.
-5. **Multi-step dialog?** → states in `app/states.py`; handlers use `FSMContext`.
-6. **Startup wiring (middleware, router, init_db, scheduler start/stop)?** → `main.py` only for registration — not business replies or expiry loops.
+3. **New user / subscription / admin field?** → extend `User` in `app/database.py` **and** `_SQLITE_USER_COLUMN_DDL`; migrate carefully if SQLite already has rows (`create_all` does not alter columns).
+4. **Reply / inline keyboard?** → builder in `app/keyboards.py`; import from handlers (learner or admin).
+5. **Multi-step dialog?** → states in `app/states.py` (e.g. `AdminSearchForm`); drive from the owning router via `FSMContext`.
+6. **Startup wiring (middleware, routers, init_db, scheduler start/stop)?** → `main.py` only for registration — not business replies or expiry loops.
 7. **Background subscription expiry / cron?** → `app/scheduler.py`; wire `start_scheduler` / `stop_scheduler` from `main` hooks only.
 8. **Env / DB URL?** → `.env` locally; Compose `env_file: .env` on VPS; default SQLite under `data/`.
 9. **Deploy / image?** → `Dockerfile`, `docker-compose.yml`, `.github/workflows/` — not product logic.
@@ -139,8 +141,8 @@ Decide in this order:
 
 **Put in database**
 
-- `User` model: `id` (Telegram BigInteger PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at`.
-- Engine, `async_session`, `init_db()`.
+- `User` model: `id` (Telegram BigInteger PK), `username`, `subscription_end`, `is_active`, `trial_used`, `is_admin`, `is_banned`, `created_at`.
+- Engine, `async_session`, `init_db()` (+ `_SQLITE_USER_COLUMN_DDL` for column ensures).
 
 **Put in middlewares**
 
@@ -199,19 +201,20 @@ main.py    # Bot, Dispatcher, middleware, init_db, include_router, start_polling
 
 ```text
 app/
-├── handlers.py      # Router + commands/callbacks
-├── auth.py          # has_active_subscription gate helper
-├── database.py      # engine, async_session, User, init_db
-├── middlewares.py   # DbSessionMiddleware
-├── keyboards.py     # markup builders (topic menu, tariffs, gate CTA)
-├── scheduler.py     # APScheduler expiry job
-└── states.py        # FSM StatesGroup stubs / groups
+├── handlers.py        # Learner Router + commands/callbacks
+├── handlers_admin.py  # Admin panel Router (`IsAdminFilter`, lists, search, mutations)
+├── auth.py            # subscription gate + admin/ban helpers (`ADMIN_IDS`)
+├── database.py        # engine, async_session, User, init_db
+├── middlewares.py     # DbSessionMiddleware
+├── keyboards.py       # markup builders (topic menu, tariffs, gate CTA, admin)
+├── scheduler.py       # APScheduler expiry job
+└── states.py          # FSM StatesGroup (`AdminSearchForm`, future study forms)
 ```
 
 ### Outside app
 
 ```text
-tests/                       # pytest suite (expiry, auth, trial/tariffs/gate, …)
+tests/                       # pytest suite (expiry, auth, trial/tariffs/gate, admin, …)
 data/db.sqlite3              # runtime (gitignored)
 Dockerfile
 docker-compose.yml           # service bot, env_file, volume ./data:/app/data
@@ -221,9 +224,9 @@ requirements.txt             # includes apscheduler
 
 ## Real Composition Examples
 
-**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)`, startup → `start_scheduler(bot)`, shutdown → `stop_scheduler()`, `start_polling`.
+**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)` + `dp.include_router(admin_router)`, startup → `start_scheduler(bot)`, shutdown → `stop_scheduler()`, `start_polling`.
 
-**Handler + DB** — `cmd_start(message, session: AsyncSession)` selects `User` by Telegram id; creates row on first visit; Russian greet strings.
+**Handler + DB** — `cmd_start(message, session: AsyncSession)` selects `User` by Telegram id; creates row on first visit; ban → «Доступ закрыт.»; admin sees «Админ» on main menu.
 
 **Middleware** — opens `async_session`, sets `data["session"]`, closes after handler.
 
@@ -264,14 +267,15 @@ requirements.txt             # includes apscheduler
 | Domain | Primary paths | Notes |
 |--------|---------------|-------|
 | Process entry | `main.py` | polling; win32 SSL/IPv4 local only |
-| Commands / UX | `app/handlers.py` | thin; session injected |
-| Users / subscription columns | `app/database.py` `User` | extend, don’t fork |
+| Learner commands / UX | `app/handlers.py` | thin; session injected; ban-aware |
+| Admin panel | `app/handlers_admin.py` | `/admin`, lists, search, mutations |
+| Users / subscription / admin columns | `app/database.py` `User` | extend, don’t fork |
 | Session injection | `app/middlewares.py` | per update |
-| Shared markup | `app/keyboards.py` | builders |
-| Multi-step dialogs | `app/states.py` | FSM |
+| Shared markup | `app/keyboards.py` | builders (incl. admin) |
+| Multi-step dialogs | `app/states.py` | FSM (`AdminSearchForm`) |
 | Subscription expiry cron | `app/scheduler.py` | APScheduler; temporary minute + `minute="*"` (restore day + 10:00 MSK with ЮKassa) |
-| Auth / gate helper | `app/auth.py` | `has_active_subscription`; import from handlers |
-| Tests | `tests/` | pytest-asyncio (expiry, auth, trial/tariffs/gate) |
+| Auth / gate helper | `app/auth.py` | subscription + admin/ban; import from handlers |
+| Tests | `tests/` | pytest-asyncio (expiry, auth, trial/tariffs/gate, admin) |
 | SQLite file | `data/` | gitignored; Compose volume |
 | VPS runtime | `docker-compose.yml` | `/home/deploy/my-study-bot` |
 | Meta / OpenSpec / skills | `my-study-bot-meta` via `project-map.md` | canonical docs/skills |
