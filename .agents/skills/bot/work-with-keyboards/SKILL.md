@@ -28,9 +28,9 @@ Coordinate with: `bot-locate-change-points` (where to edit), handlers / FSM in `
 
 ## Bot Today
 
-- `app/keyboards.py` — builders: `main_menu_kb()`, `back_to_menu_kb()`; shared callback constants (`MENU_*`).
-- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb()`; section stubs (cars/houses/subscription) use `back_to_menu_kb()` via `edit_text` + `callback.answer()`.
-- Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…`).
+- `app/keyboards.py` — builders: `main_menu_kb()`, `back_to_menu_kb()`, `tariffs_kb()`, `subscription_required_kb()`; shared callback constants (`MENU_*`, `TARIFF_PREFIX` / `TARIFFS`).
+- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb()`; Cars/Houses stubs use `back_to_menu_kb` when gate allows; Subscription opens `tariffs_kb`; gate refuse uses `subscription_required_kb`.
+- Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…`, `F.data.startswith(kb.TARIFF_PREFIX)`).
 
 ## Placement Pattern
 
@@ -59,7 +59,7 @@ await message.answer("…", reply_markup=kb.main_menu_kb())
 
 Prefer **one clear job** per keyboard. Do not mix unrelated actions on the same row without a product reason.
 
-Today’s topic menu is intentionally **inline under the greet message** (not a reply keyboard). Prefer extending `main_menu_kb` / `back_to_menu_kb` + `menu:*` constants before inventing a parallel menu surface.
+Today’s topic menu is intentionally **inline under the greet message** (not a reply keyboard). Prefer extending `main_menu_kb` / `back_to_menu_kb` / `tariffs_kb` + `menu:*` / `tariff:*` constants before inventing a parallel menu surface.
 
 Remove or replace reply keyboards explicitly when leaving a flow (`ReplyKeyboardRemove` or a new menu) so stale buttons do not linger.
 

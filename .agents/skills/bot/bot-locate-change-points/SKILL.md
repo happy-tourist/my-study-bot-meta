@@ -28,18 +28,21 @@ Search and assign ownership top-down along the Telegram update path.
 |-------|------|------|
 | Entry | `main.py` | Bot, Dispatcher, polling, platform session |
 | Handlers | `app/handlers.py` | Router, commands, callbacks |
+| Auth helper | `app/auth.py` | `has_active_subscription` |
 | DB | `app/database.py` | engine, User, init_db |
 | Middleware | `app/middlewares.py` | DbSessionMiddleware |
-| Keyboards | `app/keyboards.py` | reply/inline |
+| Keyboards | `app/keyboards.py` | topic menu / tariffs / gate CTA |
+| Scheduler | `app/scheduler.py` | expiry reminders / deactivation |
 | FSM | `app/states.py` | FSM states |
+| Tests | `tests/` | pytest suite |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml` | GHCR + VPS |
 | Env | `.env` (gitignored), `TG_TOKEN`, `DB_URL` | secrets / DB URL |
 
 Allowed dependency direction:
 
-Telegram update → Dispatcher middleware (`DbSessionMiddleware`) → handler (`session` injected) → SQLAlchemy `AsyncSession` → SQLite under `data/`. Shared UI in `keyboards.py`; multi-step dialogs in `states.py`. Prefer thin handlers; do not put business logic only inside `main.py`.
+Telegram update → Dispatcher middleware (`DbSessionMiddleware`) → handler (`session` injected) → optional `app/auth.py` gate → SQLAlchemy `AsyncSession` → SQLite under `data/`. Shared UI in `keyboards.py`; multi-step dialogs in `states.py`. Prefer thin handlers; do not put business logic only inside `main.py`.
 
-Prefer not editing `main.py` unless Bot/Dispatcher/polling/middleware registration or Windows-only session setup requires it — product flows live in `app/handlers.py` (+ states/keyboards/DB).
+Prefer not editing `main.py` unless Bot/Dispatcher/polling/middleware registration or Windows-only session setup requires it — product flows live in `app/handlers.py` (+ `auth.py` / states / keyboards / DB).
 
 ### Current vs intended product (scaffold)
 
@@ -47,19 +50,21 @@ Handlers are still thin; prefer extending existing layers rather than inventing 
 
 | Expectation | Today |
 |-------------|--------|
-| Register user on `/start` | Implemented (`User` upsert + Russian greet + inline topic menu) |
-| Subscription / study features | Schema has `subscription_end`, `is_active`; Subscription menu stub (no gate); no real study handlers yet |
-| FSM forms / keyboards | `app/keyboards.py` has `main_menu_kb` / `back_to_menu_kb`; `app/states.py` still a stub |
-| Modular routers | Single `router` in `app/handlers.py`, included from `main.py` |
+| Register user on `/start` | Implemented (`User` upsert + one-time trial + topic menu) |
+| Subscription / study features | Tariffs + Cars/Houses gate via `has_active_subscription`; study content still stubs |
+| FSM forms / keyboards | Topic menu, tariffs, subscription-required CTA; `app/states.py` still a stub |
+| Modular routers | Single `router` in `app/handlers.py` + `app/auth.py`; included from `main.py` |
 | `.env.example` | Missing — vars documented in `AGENTS.md` |
-| Tests | None yet — add pytest + aiogram helpers when critical flows appear |
+| Tests | `tests/` — expiry, auth helper, trial/tariffs/gate handlers |
 
 ### Handler / UX surface (today)
 
 | Trigger | Behavior |
 |---------|----------|
-| `/start` (`CommandStart`) | Create `User` if missing; greet; attach inline topic menu |
-| `menu:cars` / `menu:houses` / `menu:subscription` | Stub section + Back button |
+| `/start` (`CommandStart`) | Create `User` if missing (trial); greet; attach inline topic menu |
+| `menu:cars` / `menu:houses` | Gate via `has_active_subscription`; stub or refuse + CTA |
+| `menu:subscription` | Tariffs list (always open) |
+| `tariff:*` | Grant minutes onto `subscription_end` |
 | `menu:back` | Restore section-choice + main menu |
 
 User-facing strings are Russian; keep them consistent unless copy is being redesigned.
@@ -70,8 +75,9 @@ User-facing strings are Russian; keep them consistent unless copy is being redes
 |--------|-------|
 | `id` | Telegram BigInteger PK |
 | `username` | Optional string |
-| `subscription_end` | Optional datetime — subscription gate (unused in handlers yet) |
+| `subscription_end` | Optional datetime — gate via `app/auth.py` |
 | `is_active` | Boolean, default `True` |
+| `trial_used` | Boolean, default `False` — one-time trial consumed |
 | `created_at` | utcnow default |
 
 Handlers that need DB must declare `session: AsyncSession` (injected by middleware).
@@ -115,7 +121,7 @@ Use these rules to pick the layer before naming files.
 
 | If the change is… | Prefer |
 |-------------------|--------|
-| Registration, subscription gates, critical flows | New `tests/` (or similar) with pytest + aiogram testing helpers — none exist yet |
+| Registration, subscription gates, critical flows | Extend `tests/` (`test_handlers_subscription.py`, `test_auth.py`, `test_subscription_expiry.py`) with pytest + pytest-asyncio |
 
 ## Domain Hotspots
 
@@ -123,11 +129,14 @@ Use these rules to pick the layer before naming files.
 |--------|------------|
 | Process entry / polling / Bot session | `main.py` |
 | Commands, callbacks, message handlers | `app/handlers.py` |
-| User registration `/start` | `app/handlers.py` `cmd_start` + `User` |
+| User registration `/start` + trial | `app/handlers.py` `cmd_start` + `User.trial_used` |
+| Subscription gate helper | `app/auth.py` `has_active_subscription` |
 | User / subscription schema | `app/database.py` `User` |
 | DB session injection | `app/middlewares.py` → `main.py` middleware register |
 | Keyboards (reply/inline) | `app/keyboards.py` |
+| Subscription expiry cron | `app/scheduler.py` |
 | FSM multi-step flows | `app/states.py` + handlers |
+| Tests | `tests/` |
 | Deps | `requirements.txt` |
 | Docker image | `Dockerfile` |
 | Compose / volume / env_file | `docker-compose.yml` |
@@ -146,9 +155,11 @@ Use these rules to pick the layer before naming files.
 2. Search the codebase by domain terms from the task:
    - entry (`Bot`, `Dispatcher`, `start_polling`, `include_router`, win32 session);
    - handlers (`Router`, `CommandStart`, `Command`, `CallbackQuery`, `F.`, `message.answer`);
-   - DB (`User`, `subscription_end`, `is_active`, `init_db`, `async_session`, `DB_URL`);
+   - DB (`User`, `subscription_end`, `is_active`, `trial_used`, `init_db`, `async_session`, `DB_URL`);
+   - auth (`has_active_subscription`, `app/auth.py`);
    - middleware (`DbSessionMiddleware`, `session`);
-   - keyboards (`InlineKeyboardMarkup` / `ReplyKeyboardMarkup`, builders, `menu:*` constants);
+   - keyboards (`InlineKeyboardMarkup` / `ReplyKeyboardMarkup`, builders, `menu:*` / `tariff:*`);
+   - scheduler (`check_subscriptions`, `EXPIRY_WINDOW_UNIT`);
    - FSM (`FSMContext`, `StatesGroup`, `State`);
    - deploy (`Dockerfile`, `docker-compose`, `GHCR`, `appleboy/ssh-action`);
    - env (`TG_TOKEN`, `DB_URL`, `load_dotenv`).

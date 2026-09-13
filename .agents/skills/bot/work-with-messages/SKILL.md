@@ -33,9 +33,12 @@ From `app/handlers.py`:
 
 | Situation | Text |
 |-----------|------|
-| First `/start` (user created) | `"Привет! Я тебя запомнил 👋\n\nВыбери раздел:"` (+ `main_menu_kb`) |
+| First `/start` (user created + trial) | `"Привет! Я тебя запомнил 👋\n\nТебе активирован пробный период на 3 дня (3 мин).\n\nВыбери раздел:"` (+ `main_menu_kb`) |
 | Returning user | `f"С возвращением, {message.from_user.first_name}!\n\nВыбери раздел:"` (+ `main_menu_kb`) |
-| Section stubs | `"Раздел «Машины|Дома|Подписка»\nЗдесь будет контент."` (+ back keyboard) |
+| Cars / Houses stubs (active sub) | `"Раздел «Машины|Дома»\nЗдесь будет контент."` (+ `back_to_menu_kb`) |
+| Gate refuse (no active sub) | `"Доступ к разделу требует активной подписки.\nОформи подписку в разделе «Подписка»."` (+ `subscription_required_kb`) |
+| Subscription tariffs | `"Выбери тариф подписки:"` (+ `tariffs_kb`) |
+| Tariff grant confirm | `"Подписка активирована: {title}.\nДействует до … UTC."` (+ `back_to_menu_kb`) |
 | Back to menu | `"Выбери раздел:"` (+ `main_menu_kb`) |
 
 Keep Russian user-facing strings consistent with these unless product copy is being redesigned. Plain text (no `parse_mode`) for menu flows.

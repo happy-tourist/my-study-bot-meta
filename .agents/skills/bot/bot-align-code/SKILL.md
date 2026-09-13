@@ -203,7 +203,7 @@ Wrong `User` field source/constraint, missing `/start` upsert, handler without i
 
 Score **Постановка: N/10** only from hard omissions (`missing` / `docs-only` / `code-only` / `extra`), not from Warnings or Recommendations.
 
-Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert+greet+inline topic menu exists; `subscription_end` / `is_active` on model but Subscription menu is a stub (no gate); `app/states.py` is still a stub. Do not treat `states.py` alone as fulfilment of study/subscription AC; do not treat menu stubs as a paid gate.
+Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert + one-time trial + topic menu exists; Cars/Houses gated via `app/auth.py` `has_active_subscription`; Subscription shows tariffs (grant without payment); study **content** still stubs; `app/states.py` still a stub; expiry is on a temporary minute harness. Do not treat `states.py` alone as fulfilment of study AC; do not treat topic stubs as paid lesson content.
 
 ## Axis B — Codebase
 
@@ -212,11 +212,14 @@ Find strong untouched analogues for the same domain/flow. Prefer same layer:
 | Concern | Look in |
 |---------|---------|
 | Entry / Bot / polling | `main.py` (`load_dotenv`, win32 session branch, `Dispatcher`, middleware, `init_db`, `include_router`, `start_polling`) |
-| Handlers / commands | `app/handlers.py` (`Router`, `CommandStart`, future commands/callbacks) |
-| User model / engine | `app/database.py` (`User`, `async_session`, `init_db`) |
+| Handlers / commands | `app/handlers.py` (`Router`, `CommandStart`, tariffs / gate callbacks) |
+| Auth / gate helper | `app/auth.py` (`has_active_subscription`) |
+| User model / engine | `app/database.py` (`User` incl. `trial_used`, `async_session`, `init_db`) |
 | DB session injection | `app/middlewares.py` (`DbSessionMiddleware`) |
-| Keyboards | `app/keyboards.py` |
+| Keyboards | `app/keyboards.py` (topic menu, tariffs, gate CTA) |
+| Scheduler | `app/scheduler.py` (expiry job; temporary minute harness) |
 | FSM | `app/states.py` |
+| Tests | `tests/` (expiry, auth, trial/tariffs/gate) |
 | Deps | `requirements.txt` (aiogram 3.22, SQLAlchemy, aiosqlite, python-dotenv) |
 | Env | local `.env` / server `.env` (gitignored); document `TG_TOKEN`, `DB_URL` — do not commit secrets |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/deploy.yml` |

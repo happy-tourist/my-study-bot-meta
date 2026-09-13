@@ -31,16 +31,16 @@ Skills path for now: `.agents/skills/bot/` in this repo (canonical copy may late
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` → `session: AsyncSession` in handlers |
 | Entry | `main.py` | Bot/Dispatcher/polling/router include only — not study rules |
 
-Scaffold today: `/start` registers `User`, greets in Russian, and shows an inline topic menu (Cars / Houses / Subscription stubs; no gate). Schema has `subscription_end` / `is_active`; **no real study or gated subscription product yet**. `app/keyboards.py` has menu builders; `app/states.py` is still a stub. Guide new work toward the layering below; do not claim lessons, progress, or gated study UX as existing product fact.
+Scaffold today: `/start` registers `User` (first visit grants one-time trial), greets in Russian, and shows an inline topic menu. Cars/Houses are gated via `app/auth.py` `has_active_subscription`; Subscription opens tariffs (grant without payment). Study topic **content** is still stubs — do not claim lessons/progress as shipped. `app/keyboards.py` has topic/tariff/gate CTA builders; `app/states.py` is still a stub.
 
 ### Current vs intended product (scaffold)
 
 | Expectation | Today |
 | --- | --- |
-| Register user on `/start` | Implemented (`User` upsert + Russian greet + topic menu) |
-| Subscription / study features | Schema has `subscription_end`, `is_active`; Subscription menu is a stub (no gate); no real study handlers yet |
-| FSM forms / keyboards | `app/keyboards.py` has topic-menu builders; `app/states.py` still a stub |
-| Modular routers | Single `app/handlers.py` router included from `main.py` |
+| Register user on `/start` | Implemented (`User` upsert + trial on first visit + topic menu) |
+| Subscription / study features | Tariffs + Cars/Houses gate live; study lesson content still stubs |
+| FSM forms / keyboards | Topic menu, tariffs, subscription-required CTA; `app/states.py` still a stub |
+| Modular routers | Single `app/handlers.py` + `app/auth.py` gate helper |
 
 When adding study/subscription behavior, prefer extending the existing `User` model and middleware session injection rather than inventing a parallel data path.
 
@@ -48,7 +48,7 @@ When adding study/subscription behavior, prefer extending the existing `User` mo
 
 - SQLite `User` (and future study tables/columns) is the only durable truth for registration, subscription, and study progress once implemented.
 - Handlers read/write via injected `session: AsyncSession` — do not open ad-hoc engines or bypass middleware for normal update handling.
-- Subscription gate **before** study features: check access (tie to `bot-work-with-auth`) using `subscription_end` / `is_active` (and any later fields) before entering lesson flows. Exact gate policy is an **open question** until product fixes it — label undecided rules; do not invent “premium modes” as hard fact.
+- Subscription gate **before** study features: use `has_active_subscription` (`app/auth.py`) — `is_active` + `subscription_end > now`. Gate policy for topic sections is fixed; lesson-level rules remain product decisions when real study flows land.
 - Do not put study business logic in `main.py` or only inside keyboard builders.
 
 ## Domain Surfaces
@@ -76,7 +76,9 @@ When adding study/subscription behavior, prefer extending the existing `User` mo
 | --- | --- |
 | `id` | Telegram BigInteger PK |
 | `username` | Optional |
-| `subscription_end` | Optional datetime — intended subscription gate (unused in handlers yet) |
+| `subscription_end` | Optional datetime — gate via `has_active_subscription` |
+| `is_active` | Soft active / deactivate on expiry |
+| `trial_used` | One-time free trial consumed |
 | `is_active` | Boolean, default `True` |
 | `created_at` | utcnow default |
 
@@ -107,7 +109,7 @@ Telegram update
 
 ## Implementation Checklist (scaffold → product)
 
-- [ ] Subscription gate before any study entry (fields exist; handlers not wired yet).
+- [ ] Subscription gate before study entry (`has_active_subscription`; Cars/Houses already gated — extend when real lessons land).
 - [ ] Study commands/callbacks in handlers; FSM states for multi-step lessons/forms.
 - [ ] Extend `User` / related models for progress only as product defines — do not invent a full LMS schema without requirements.
 - [ ] Keyboards for navigation only; business rules outside keyboard-only files.
@@ -119,15 +121,15 @@ Telegram update
 ## Do
 
 - Extend `User` + middleware `session`; put study flows in handlers / FSM / states.
-- Gate study features on subscription/access before lesson UX.
+- Gate study features on subscription/access before lesson UX (`app/auth.py`).
 - Keep study rules out of `main.py` and out of keyboards-only modules.
 - Use FSM for multi-step lessons/forms; Russian user-facing strings.
-- Mark undecided product rules (gate policy, lesson model, progress shape) as open questions.
-- Stay scaffold-aware: describe **target** behavior; do not claim unimplemented study features as shipped.
+- Mark undecided product rules (lesson model, progress shape, payments) as open questions.
+- Stay scaffold-aware: describe **target** behavior; do not claim unimplemented study lessons as shipped.
 
 ## Don't
 
-- Treat `subscription_end` / `is_active` as a finished product gate — schema only today.
+- Bypass `has_active_subscription` for new study entry points — topic gate is live; keep it.
 - Put authoritative study logic only in `main.py` or only in `app/keyboards.py`.
 - Invent a parallel user/progress database outside the SQLAlchemy `User` path without an explicit product decision.
 - Ship English learner-facing copy by default; match existing Russian replies unless redesigning copy.

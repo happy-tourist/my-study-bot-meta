@@ -69,12 +69,12 @@ if needed (`pip install pytest pytest-asyncio`).
 
 | Subject | Test path |
 |---------|-----------|
-| `app/handlers.py` (`/start`, future commands) | `tests/test_handlers_start.py` (or `tests/test_handlers.py`) |
-| Subscription gates (`subscription_end`, `is_active`) | `tests/test_subscription.py` (add with the gate code) |
-| `app/scheduler.py` (windows, expire, production defaults) | `tests/test_subscription_expiry.py` |
+| `app/handlers.py` (trial `/start`, tariffs, topic gate) | `tests/test_handlers_subscription.py` |
+| `app/auth.py` (`has_active_subscription`) | `tests/test_auth.py` |
+| `app/scheduler.py` (windows, expire, harness defaults) | `tests/test_subscription_expiry.py` |
 | `app/states.py` / FSM dialogs | `tests/test_fsm_*.py` |
 | `app/middlewares.py` (`DbSessionMiddleware`) | `tests/test_middleware_db.py` |
-| Shared fixtures (engine, session_factory, …) | `tests/conftest.py` |
+| Shared fixtures (engine, session_factory, session) | `tests/conftest.py` |
 
 Mirror feature growth under `tests/`; keep imports as `from app.…`. Prefer
 `tests/` over a single giant file once coverage spans more than one area.
@@ -96,9 +96,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
    and **What to verify**.
 3. Extend existing `tests/` (reuse `conftest.py` fixtures). Only bootstrap
    `pytest` / `pytest.ini` if the suite is missing on a fresh clone.
-4. Cover success and failure paths (first `/start` vs return, remind/expire
-   windows with `unit="day"` or explicit `unit="minute"`, failed DM does not
-   abort batch, production defaults stay day + daily cron, FSM / middleware).
+4. Cover success and failure paths (first `/start` trial vs return, tariff grant/stack,
+   gate allow/deny, remind/expire windows with `unit="minute"` under the temporary
+   harness — or `unit="day"` when restoring production, failed DM does not abort
+   batch, assert **current** harness/production defaults in `test_production_defaults_*`,
+   FSM / middleware).
 5. Run `pytest` from the bot repo root; fix failures before claiming done.
 
 ## Test Plan

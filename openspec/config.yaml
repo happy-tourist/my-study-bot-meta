@@ -161,7 +161,7 @@ rules:
     - 'Отдельные пункты на тесты где применимо (bot: pytest; иначе compileall / ручной прогон вне tasks)'
     - 'НЕ добавлять пункты ручной проверки / manual smoke / «ручной сценарий» — coverage SC в specs Traceability + автотесты; ручной прогон вне tasks (verify/ops)'
     - 'Bot skills при apply: из .agents/skills/bot/ (locate/align/verify + topic skills)'
-    - 'Финализация: openspec validate, /opsx-sync, /opsx-archive'
+    - 'НЕ добавлять в конец tasks.md блоки «закрытие» / «финализация»: openspec validate, /opsx-sync, /opsx-archive, end-implement-change — это отдельные workflow вне чеклиста реализации'
     - 'Команды pip/python/pytest/Docker — запускает агент из sibling-репо; в tasks включать пункты без пометки «(пользователь)»'
 
   # /opsx-update — правка существующих planning-артефактов change

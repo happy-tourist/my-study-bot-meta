@@ -4,8 +4,8 @@ description: >-
   Use when adding, changing, reviewing, or debugging the SQLite user store,
   SQLAlchemy User model, DB_URL / data/db.sqlite3 paths, DbSessionMiddleware
   session injection, init_db, or subscription fields (subscription_end,
-  is_active) in my-study-bot so Telegram /start registration and handlers keep
-  working.
+  is_active, trial_used) in my-study-bot so Telegram /start registration and
+  handlers keep working.
 ---
 
 # Work With Database
@@ -36,8 +36,9 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 |-------|---------------|-------|
 | `id` | `BigInteger` PK | Telegram user id (not autoincrement) |
 | `username` | `String(64)`, nullable | Telegram username at register/update time |
-| `subscription_end` | `DateTime`, nullable | Expiry instant; used by `app/scheduler.py` + future handler gates |
+| `subscription_end` | `DateTime`, nullable | Expiry instant; used by `app/scheduler.py` + `app/auth.py` gates |
 | `is_active` | `Boolean`, `default=True` | Active flag |
+| `trial_used` | `Boolean`, `default=False` | One-time free trial already consumed |
 | `created_at` | `DateTime`, `default=datetime.utcnow` | Row creation time |
 
 These are **Telegram learner** fields (identity + subscription), not HTTP auth users. There is no separate admin API or JWT user store in this package.
@@ -84,6 +85,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # new_field: Mapped[str | None] = mapped_column(String(64), nullable=True)
 ```

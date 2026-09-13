@@ -74,6 +74,7 @@ bot: ../my-study-bot
 | `bot.main` | `../my-study-bot/main.py` | entry: Bot / Dispatcher / polling |
 | `bot.app` | `../my-study-bot/app/` | пакет приложения |
 | `bot.handlers` | `../my-study-bot/app/handlers.py` | Router handlers |
+| `bot.auth` | `../my-study-bot/app/auth.py` | `has_active_subscription` gate helper |
 | `bot.database` | `../my-study-bot/app/database.py` | engine, User model, `init_db` |
 | `bot.middlewares` | `../my-study-bot/app/middlewares.py` | `DbSessionMiddleware` |
 | `bot.keyboards` | `../my-study-bot/app/keyboards.py` | Inline topic-menu builders (`menu:*`) |

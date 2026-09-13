@@ -3,8 +3,9 @@ name: work-with-models
 description: >-
   Use when creating, changing, reviewing, or debugging SQLAlchemy ORM models in
   the my-study-bot Telegram study bot — DeclarativeBase, Mapped / mapped_column,
-  User table users, subscription_end / is_active fields, init_db create_all, or
-  extending persistence for subscription / study without parallel stores.
+  User table users, subscription_end / is_active / trial_used fields, init_db
+  create_all, or extending persistence for subscription / study without parallel
+  stores.
 ---
 
 # Work With Models
@@ -54,6 +55,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
@@ -63,8 +65,9 @@ class User(Base):
 | --- | --- | --- |
 | `id` | Telegram user id | `BigInteger` PK |
 | `username` | Optional Telegram username | `String(64)`, nullable |
-| `subscription_end` | Subscription expiry | `DateTime`, nullable — gate in handlers |
+| `subscription_end` | Subscription expiry | `DateTime`, nullable — gate in handlers / `app/auth.py` |
 | `is_active` | Active flag | `Boolean`, default `True` |
+| `trial_used` | One-time free trial consumed | `Boolean`, default `False` |
 | `created_at` | Row created | `DateTime`, `utcnow` default |
 
 Prefer **extend `User`** for subscription/study persistence rather than parallel
@@ -77,6 +80,7 @@ stores or a second user table.
 | `id` | `BigInteger` | Telegram id (PK) |
 | `subscription_end` | `DateTime` | When subscription ends (`None` = none / unset) |
 | `is_active` | `Boolean` | Soft active flag |
+| `trial_used` | `Boolean` | One-time free trial consumed |
 
 Keep these encodings stable; change only with handlers that read/write them.
 
@@ -103,6 +107,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
@@ -164,7 +169,7 @@ async def init_db():
 - Prefer extending `User` over parallel stores for subscription/study data.
 - Use `DeclarativeBase` + `Mapped` + `mapped_column` consistently.
 - Use `BigInteger` for Telegram `id`, `DateTime` for `subscription_end`,
-  `Boolean` for `is_active`.
+  `Boolean` for `is_active` / `trial_used`.
 - Declare `session: AsyncSession` in handlers; rely on `DbSessionMiddleware`.
 - Note migration needs when changing columns on an existing SQLite file.
 
@@ -181,8 +186,8 @@ async def init_db():
 
 When changing models:
 
-1. Columns still match handler expectations (`id`, `subscription_end`, `is_active`, …).
-2. Types stay: Telegram id `BigInteger`, `subscription_end` `DateTime`, `is_active` `Boolean`.
+1. Columns still match handler expectations (`id`, `subscription_end`, `is_active`, `trial_used`, …).
+2. Types stay: Telegram id `BigInteger`, `subscription_end` `DateTime`, `is_active` / `trial_used` `Boolean`.
 3. Business rules stay in handlers / study helpers — models remain persistence-only.
 4. Prefer extend `User`; justify any new table.
 5. If columns change on an existing DB, plan migrations beyond `create_all`.

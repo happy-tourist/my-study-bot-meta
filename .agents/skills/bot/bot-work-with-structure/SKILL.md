@@ -53,12 +53,13 @@ Sibling meta: resolve via `project-map.md` key `my-study-bot-meta`
 |-------|------|------|
 | Entry | `main.py` | `Bot`, `Dispatcher`, polling, win32 session; wire middleware + router |
 | Handlers | `app/handlers.py` | Routers / commands / callbacks (thin orchestration) |
+| Auth helper | `app/auth.py` | `has_active_subscription` for gated topic sections |
 | Database | `app/database.py` | Engine, `async_session`, `User` model, `init_db()` |
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` injects `session: AsyncSession` |
-| Keyboards | `app/keyboards.py` | Inline topic-menu builders (`main_menu_kb`, `back_to_menu_kb`, `menu:*`) |
+| Keyboards | `app/keyboards.py` | Inline builders (`main_menu_kb`, `tariffs_kb`, `menu:*` / `tariff:*`) |
 | Scheduler | `app/scheduler.py` | APScheduler expiry job (`check_subscriptions`); start/stop from `main` hooks |
 | FSM | `app/states.py` | aiogram FSM states / groups |
-| Tests | `tests/` | pytest + pytest-asyncio (`test_subscription_expiry.py`, …) |
+| Tests | `tests/` | pytest + pytest-asyncio (expiry, auth, trial/tariffs/gate) |
 | Runtime DB | `data/` | SQLite file (gitignored; Compose volume `./data:/app/data`) |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/` | Image + VPS compose deploy |
 
@@ -70,6 +71,7 @@ Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` 
 |-------|------|--------------|
 | **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include router, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
 | **`handlers.py`** | Filters, handlers, greetings / study flow UX, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs |
+| **`auth.py`** | Shared subscription gate helper (`has_active_subscription`) | Telegram send; keyboard markup trees |
 | **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` / `create_all` | Telegram replies; Router registration |
 | **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic; background jobs |
 | **`keyboards.py`** | Shared reply/inline builders | DB access; long handler bodies |
@@ -93,7 +95,8 @@ Allowed:
 ```text
 main.py        →  app.handlers, app.database, app.middlewares, app.scheduler (wiring only)
 middlewares    →  app.database (async_session factory)
-handlers       →  app.database (models), app.keyboards, app.states; session via injection
+handlers       →  app.database (models), app.auth, app.keyboards, app.states; session via injection
+auth           →  app.database (User type only; no Telegram I/O)
 scheduler      →  app.database (async_session / User), aiogram Bot; own session in job
 keyboards      →  aiogram types only (no DB)
 states         →  aiogram FSM only (no DB / no handlers)
@@ -136,7 +139,7 @@ Decide in this order:
 
 **Put in database**
 
-- `User` model: `id` (Telegram BigInteger PK), `username`, `subscription_end`, `is_active`, `created_at`.
+- `User` model: `id` (Telegram BigInteger PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at`.
 - Engine, `async_session`, `init_db()`.
 
 **Put in middlewares**
@@ -197,9 +200,10 @@ main.py    # Bot, Dispatcher, middleware, init_db, include_router, start_polling
 ```text
 app/
 ├── handlers.py      # Router + commands/callbacks
+├── auth.py          # has_active_subscription gate helper
 ├── database.py      # engine, async_session, User, init_db
 ├── middlewares.py   # DbSessionMiddleware
-├── keyboards.py     # markup builders
+├── keyboards.py     # markup builders (topic menu, tariffs, gate CTA)
 ├── scheduler.py     # APScheduler expiry job
 └── states.py        # FSM StatesGroup stubs / groups
 ```
@@ -207,7 +211,7 @@ app/
 ### Outside app
 
 ```text
-tests/                       # pytest suite (subscription expiry, …)
+tests/                       # pytest suite (expiry, auth, trial/tariffs/gate, …)
 data/db.sqlite3              # runtime (gitignored)
 Dockerfile
 docker-compose.yml           # service bot, env_file, volume ./data:/app/data
@@ -265,8 +269,9 @@ requirements.txt             # includes apscheduler
 | Session injection | `app/middlewares.py` | per update |
 | Shared markup | `app/keyboards.py` | builders |
 | Multi-step dialogs | `app/states.py` | FSM |
-| Subscription expiry cron | `app/scheduler.py` | APScheduler; day windows + 10:00 Moscow |
-| Tests | `tests/` | pytest-asyncio |
+| Subscription expiry cron | `app/scheduler.py` | APScheduler; temporary minute + `minute="*"` (restore day + 10:00 MSK with ЮKassa) |
+| Auth / gate helper | `app/auth.py` | `has_active_subscription`; import from handlers |
+| Tests | `tests/` | pytest-asyncio (expiry, auth, trial/tariffs/gate) |
 | SQLite file | `data/` | gitignored; Compose volume |
 | VPS runtime | `docker-compose.yml` | `/home/deploy/my-study-bot` |
 | Meta / OpenSpec / skills | `my-study-bot-meta` via `project-map.md` | canonical docs/skills |
@@ -296,7 +301,7 @@ requirements.txt             # includes apscheduler
 
 For structure-only placement tasks, confirm:
 
-- [ ] Correct layer (`main` / `handlers` / `database` / `middlewares` / `keyboards` / `scheduler` / `states` / `tests` / deploy)
+- [ ] Correct layer (`main` / `handlers` / `auth` / `database` / `middlewares` / `keyboards` / `scheduler` / `states` / `tests` / deploy)
 - [ ] Dependency direction respected (update → middleware → handler → session/DB)
 - [ ] No parallel data path; handlers use injected `AsyncSession`
 - [ ] Business logic not stuffed into `main.py`

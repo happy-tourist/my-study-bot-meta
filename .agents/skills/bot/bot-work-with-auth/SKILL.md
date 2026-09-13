@@ -53,11 +53,11 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 |-------|------|------|
 | Entry | `main.py` | `Bot` + `Dispatcher`; registers `DbSessionMiddleware` on updates; `init_db()`; includes router |
 | Middleware | `app/middlewares.py` | Opens `async_session` per update; injects `session: AsyncSession` into handler `data` |
-| User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `created_at` |
+| User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at` |
 | DB init | `app/database.py` `init_db()` | `Base.metadata.create_all` if tables missing |
-| Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; greet first visit vs return; attach inline topic menu (`kb.main_menu_kb()`) |
-| Gate | Handlers (or helper) | Load `User` by Telegram id; require `is_active` and valid `subscription_end` |
-| Expiry job | `app/scheduler.py` | Daily cron: remind 3/2/1 days, then set `is_active=False` when expired |
+| Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; greet + inline topic menu |
+| Gate | `app/auth.py` + handlers | `has_active_subscription`; Cars/Houses gated; Subscription/tariffs always open |
+| Expiry job | `app/scheduler.py` | Temporary minute windows + minutely cron (restore day + 10:00 MSK with ЮKassa) |
 | Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`) |
 | Storage | `data/db.sqlite3` | Runtime SQLite (gitignored; Compose volume `./data:/app/data`) |
 
@@ -103,10 +103,11 @@ user to the Bot API; the bot only **maps** that id to a local `User` and
 
 1. `main.py` registers `DbSessionMiddleware` so every handler can declare `session: AsyncSession`.
 2. User sends `/start` → handler reads `message.from_user.id` (+ optional `username`).
-3. If no `User` row: create with defaults (`is_active=True`, `subscription_end=None`); commit; first-visit greeting + `kb.main_menu_kb()`.
-4. If row exists: return greeting + same topic menu (do not recreate).
-5. For paid / study features: reload or reuse `User`; check `is_active` and `subscription_end`; allow or refuse. Menu stubs today are **not** gated.
-6. Background: `app/scheduler.py` (production day windows, cron 10:00 Europe/Moscow) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`. Temporary Subscription-menu buttons can grant 1m/5m for manual testing — they only write `User` fields; the scheduler owns reminders/deactivation.
+3. If no `User` row: create with `trial_used=True`, `is_active=True`, `subscription_end=utcnow()+3 minutes`; commit; first-visit greeting (trial notice) + `kb.main_menu_kb()`.
+4. If row exists: return greeting + same topic menu (do not recreate; do not re-grant trial).
+5. For topic sections Cars/Houses: load `User`; `has_active_subscription` → allow stub or refuse with Russian copy + CTA to Subscription.
+6. Subscription section / `tariff:*` grants: always reachable; write `subscription_end` / `is_active` on grant (no payment provider yet).
+7. Background: `app/scheduler.py` (temporary minute windows, cron `minute="*"`) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`.
 
 ## User Model (Access Fields)
 
@@ -118,6 +119,7 @@ File: `app/database.py`.
 | `username` | `String(64)` \| None | Snapshot from Telegram; may change; not for auth |
 | `subscription_end` | `DateTime` \| None | Access until this instant; `None` = no paid access |
 | `is_active` | `bool` (default `True`) | Soft disable / ban without deleting the row |
+| `trial_used` | `bool` (default `False`) | One-time free trial already consumed |
 | `created_at` | `DateTime` | Registration timestamp |
 
 ```python
@@ -128,6 +130,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    trial_used: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
@@ -142,16 +145,22 @@ File: `app/handlers.py`.
 @router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession):
     user_id = message.from_user.id
-
-    result = await session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    user = await _load_user(session, user_id)
 
     if user is None:
-        user = User(id=user_id, username=message.from_user.username)
+        user = User(
+            id=user_id,
+            username=message.from_user.username,
+            trial_used=True,
+            is_active=True,
+            subscription_end=datetime.utcnow() + timedelta(minutes=3),
+        )
         session.add(user)
         await session.commit()
         await message.answer(
-            "Привет! Я тебя запомнил 👋\n\nВыбери раздел:",
+            "Привет! Я тебя запомнил 👋\n\n"
+            "Тебе активирован пробный период на 3 дня (3 мин).\n\n"
+            "Выбери раздел:",
             reply_markup=kb.main_menu_kb(),
         )
     else:
@@ -163,8 +172,9 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 - Always key off `from_user.id`, never username alone (usernames change / may be absent).
 - Keep Russian user-facing strings consistent unless product copy is being redesigned.
-- After upsert/greet, attach the shared inline topic menu (`main_menu_kb`); section stubs are not gated yet — do not treat menu callbacks as proof of subscription.
+- After upsert/greet, attach the shared inline topic menu (`main_menu_kb`); Cars/Houses are gated via `has_active_subscription`; Subscription opens tariffs without gate.
 - `/start` should remain the registration path; do not require a separate “sign up” command for MVP.
+- Shared helper lives in `app/auth.py` — import it; do not duplicate gate math in each handler.
 
 ## How To Gate Handlers
 
@@ -177,12 +187,15 @@ Pattern for any subscription-protected command / callback:
 5. If `user.subscription_end is None` or `user.subscription_end <= now` → refuse (no / expired subscription).
 6. Only then run the study / paid flow.
 
-Suggested shared helper (prefer one place over copy-paste):
+Suggested shared helper (`app/auth.py`):
 
 ```python
 from datetime import datetime
 
-def has_active_subscription(user: User, *, now: datetime | None = None) -> bool:
+from app.database import User
+
+
+def has_active_subscription(user: User | None, *, now: datetime | None = None) -> bool:
     now = now or datetime.utcnow()
     if user is None or not user.is_active:
         return False
