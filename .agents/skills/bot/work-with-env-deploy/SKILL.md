@@ -67,7 +67,9 @@ Linux / Docker / VPS use the clean `Bot(token=…)` branch — do not copy the W
 | Container name | `my-study-bot` |
 | Restart | `unless-stopped` |
 | Env | `env_file: .env` |
-| Volume | `./data:/app/data` (SQLite survives restarts) |
+| Volume | `./data:/app/data` (SQLite survives restarts **and** deploys — not wiped by push) |
+
+On container start `init_db()` runs `create_all` then `_ensure_sqlite_user_columns` (DDL in `_SQLITE_USER_COLUMN_DDL` in `app/database.py`). New columns land on the existing VPS file without SSH. Do **not** delete `data/db.sqlite3` in the deploy workflow.
 
 ## GitHub Actions deploy
 

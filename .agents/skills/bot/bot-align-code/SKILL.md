@@ -100,7 +100,7 @@ For every middleware / startup requirement, independently verify:
 
 1. `DbSessionMiddleware` on `dp.update` opens `async_session`, injects `data["session"]`, closes after handler;
 2. env contract: `TG_TOKEN` (required), `DB_URL` (default SQLite path under `data/`);
-3. `load_dotenv()` + `init_db()` (`Base.metadata.create_all`) before polling;
+3. `load_dotenv()` + `init_db()` (`create_all` + `_ensure_sqlite_user_columns`) before polling;
 4. Windows SSL/IPv4 hack only inside `sys.platform == "win32"` — must not leak into Docker/Linux production path;
 5. handlers do not open a second engine/session path that bypasses middleware when AC expects injection;
 6. missing/invalid `TG_TOKEN` → bot cannot poll (not silent “works without token”).
@@ -214,7 +214,7 @@ Find strong untouched analogues for the same domain/flow. Prefer same layer:
 | Entry / Bot / polling | `main.py` (`load_dotenv`, win32 session branch, `Dispatcher`, middleware, `init_db`, `include_router`, `start_polling`) |
 | Handlers / commands | `app/handlers.py` (`Router`, `CommandStart`, tariffs / gate callbacks) |
 | Auth / gate helper | `app/auth.py` (`has_active_subscription`) |
-| User model / engine | `app/database.py` (`User` incl. `trial_used`, `async_session`, `init_db`) |
+| User model / engine | `app/database.py` (`User` incl. `trial_used`, `async_session`, `init_db`, `_SQLITE_USER_COLUMN_DDL`) |
 | DB session injection | `app/middlewares.py` (`DbSessionMiddleware`) |
 | Keyboards | `app/keyboards.py` (topic menu, tariffs, gate CTA) |
 | Scheduler | `app/scheduler.py` (expiry job; temporary minute harness) |

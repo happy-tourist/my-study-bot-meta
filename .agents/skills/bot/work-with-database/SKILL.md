@@ -3,9 +3,9 @@ name: work-with-database
 description: >-
   Use when adding, changing, reviewing, or debugging the SQLite user store,
   SQLAlchemy User model, DB_URL / data/db.sqlite3 paths, DbSessionMiddleware
-  session injection, init_db, or subscription fields (subscription_end,
-  is_active, trial_used) in my-study-bot so Telegram /start registration and
-  handlers keep working.
+  session injection, init_db, _SQLITE_USER_COLUMN_DDL / _ensure_sqlite_user_columns
+  startup ALTER, or subscription fields (subscription_end, is_active, trial_used)
+  in my-study-bot so Telegram /start registration and handlers keep working.
 ---
 
 # Work With Database
@@ -20,7 +20,7 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 
 | Piece | Path | Role |
 |-------|------|------|
-| Connection + model | `app/database.py` | `DB_URL`, `engine`, `async_session`, `Base`, `User`, `init_db()` |
+| Connection + model | `app/database.py` | `DB_URL`, `engine`, `async_session`, `Base`, `User`, `init_db()`, `_SQLITE_USER_COLUMN_DDL`, `_ensure_sqlite_user_columns` |
 | Session injection | `app/middlewares.py` | `DbSessionMiddleware` opens `async_session()`, sets `data["session"]` |
 | Wire-up | `main.py` | `dp.update.middleware(DbSessionMiddleware())` then `await init_db()` |
 | Handlers | `app/handlers.py` | Declare `session: AsyncSession`; upsert `User` on `/start` |
@@ -43,7 +43,7 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 
 These are **Telegram learner** fields (identity + subscription), not HTTP auth users. There is no separate admin API or JWT user store in this package.
 
-`init_db()` runs `Base.metadata.create_all` — creates missing tables only; it does **not** ALTER existing tables when columns are added.
+`init_db()` runs `Base.metadata.create_all`, then `_ensure_sqlite_user_columns` — idempotent `ALTER TABLE` for known new columns (e.g. `trial_used`) on an existing SQLite `users` table so VPS volume survives deploy without manual SSH wipe.
 
 ## Relation To Handlers / Identity
 
@@ -70,10 +70,11 @@ main.py: DbSessionMiddleware + init_db()
 
 1. Edit `User` in `app/database.py` only for new persisted user fields.
 2. Prefer nullable columns or columns with a Python/`mapped_column` `default=...` so existing insert paths (e.g. `/start`) need not supply every field.
-3. Remember `create_all` does **not** migrate existing SQLite files — for local/prod `data/db.sqlite3`, plan `ALTER TABLE` / recreate carefully; do not assume deploy ships a fresh DB.
+3. When adding a column: update the `User` model **and** append DDL to `_SQLITE_USER_COLUMN_DDL` in `app/database.py`. On next process/container start `init_db` runs create_all then idempotent ALTER for missing names. Deploy does **not** wipe `data/db.sqlite3`.
 4. Keep using `async_session` from `app/database.py` and `DbSessionMiddleware`; do not add a second engine.
 5. Document `DB_URL` if env/path behavior changes (add `.env.example` when convenient).
-6. Compose volume `./data:/app/data` means the host `data/` directory is authoritative on the VPS — schema changes apply to that file.
+6. Compose volume `./data:/app/data` means the host `data/` directory is authoritative on the VPS — rows survive push; only missing columns from `_SQLITE_USER_COLUMN_DDL` are added.
+7. Cover new DDL with a test like `tests/test_database_schema.py` (legacy table without the column → ensure → column present; second run idempotent).
 
 Example pattern (same style as existing fields):
 
@@ -94,8 +95,9 @@ class User(Base):
 
 - Extend `User` in `app/database.py` for new persisted learner/subscription fields.
 - Give new columns a safe default or make them nullable so `/start` inserts keep working.
+- Register every new `users` column in `_SQLITE_USER_COLUMN_DDL` so VPS volume gets ALTER on startup.
 - Use injected `session: AsyncSession` in handlers that need DB.
-- Keep SQLite under `data/` (default URL) and rely on Compose volume for persistence.
+- Keep SQLite under `data/` (default URL) and rely on Compose volume for persistence (no wipe on deploy).
 - Treat subscription fields as server-side truth; do not trust client-only claims for access gates.
 
 ## Don't
@@ -104,7 +106,8 @@ class User(Base):
 - Open a parallel engine/sessionmaker in handlers instead of middleware injection.
 - Put FSM / ephemeral dialog state in the users table — that belongs in aiogram FSM (`app/states.py`).
 - Commit `data/db.sqlite3`, secrets, or production `.env` with real credentials.
-- Assume `init_db()` / `create_all` will add columns to an existing DB file.
+- Add a `User` mapped column without a matching `_SQLITE_USER_COLUMN_DDL` entry (prod volume will break on SELECT).
+- Delete prod/local SQLite on every deploy — wipe only for intentional reset (e.g. re-test trial).
 - Bypass the existing `User` model with a second user table unless there is a strong, explicit reason.
 
 ## Checklist
@@ -112,8 +115,9 @@ class User(Base):
 When changing DB-related code:
 
 - [ ] New columns are nullable or have defaults compatible with `/start` insert
+- [ ] New columns registered in `_SQLITE_USER_COLUMN_DDL` (+ model) and covered by schema ensure test
 - [ ] Handlers that need DB still take `session: AsyncSession` from middleware
 - [ ] No second engine / parallel ORM stack introduced
-- [ ] Existing `data/db.sqlite3` migration plan considered (`create_all` ≠ ALTER)
+- [ ] Understood: create_all creates tables; column adds come from `_ensure_sqlite_user_columns` (not from wipe)
 - [ ] Compose `./data:/app/data` and gitignore of `data/` still understood
 - [ ] No Colyseus/drizzle patterns copied from other projects

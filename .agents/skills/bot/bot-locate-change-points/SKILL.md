@@ -103,7 +103,7 @@ Use these rules to pick the layer before naming files.
 | If the change is… | Prefer |
 |-------------------|--------|
 | Persist user / subscription fields | Extend `User` in `app/database.py`; use injected `session` in handlers — do not invent a parallel store |
-| Create tables on boot | `init_db()` already `create_all` — note schema changes may need migration strategy (none yet) |
+| Create tables on boot | `init_db()` = `create_all` + `_ensure_sqlite_user_columns`; new columns → `_SQLITE_USER_COLUMN_DDL` (no wipe on deploy) |
 | How handlers get a DB session | `app/middlewares.py` `DbSessionMiddleware`; registered on `dp.update` in `main.py` |
 | Token / DB path | `.env` (gitignored): `TG_TOKEN` (required), `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`); document in `.env.example` when adding one |
 | Windows local SSL/IPv4 VPN debug | `main.py` `sys.platform == "win32"` branch only — never copy into Docker/Linux production |

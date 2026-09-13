@@ -54,7 +54,7 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | Entry | `main.py` | `Bot` + `Dispatcher`; registers `DbSessionMiddleware` on updates; `init_db()`; includes router |
 | Middleware | `app/middlewares.py` | Opens `async_session` per update; injects `session: AsyncSession` into handler `data` |
 | User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at` |
-| DB init | `app/database.py` `init_db()` | `Base.metadata.create_all` if tables missing |
+| DB init | `app/database.py` `init_db()` | `create_all` + `_ensure_sqlite_user_columns` (DDL in `_SQLITE_USER_COLUMN_DDL`) |
 | Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; greet + inline topic menu |
 | Gate | `app/auth.py` + handlers | `has_active_subscription`; Cars/Houses gated; Subscription/tariffs always open |
 | Expiry job | `app/scheduler.py` | Temporary minute windows + minutely cron (restore day + 10:00 MSK with ЮKassa) |
@@ -134,7 +134,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
-When adding new **required** columns, give safe defaults (or migrate carefully)
+When adding new **required** columns, give safe defaults and register DDL in
+`_SQLITE_USER_COLUMN_DDL` so `init_db` ALTERs existing SQLite on the next start.
 so `/start` upsert and existing rows do not break.
 
 ## Registration (`/start`)
@@ -241,7 +242,7 @@ No JWT / OAuth / session secrets. Do not commit `.env` or production tokens.
 2. Keep `User.id` as Telegram BigInteger PK — do not switch PK to username.
 3. Preserve `/start` upsert as the registration entry (or explicitly migrate the product).
 4. Gate paid features via `is_active` + `subscription_end`, not message text or client claims.
-5. New required `User` columns → defaults or migration before deploy.
+5. New required `User` columns → defaults + `_SQLITE_USER_COLUMN_DDL` entry (startup ALTER; no deploy wipe).
 6. Keep Russian refuse / greet copy consistent with existing handlers.
 7. Prefer a shared `has_active_subscription` (or middleware gate) over duplicated checks.
 8. Do not introduce JWT, OAuth, cookies, or Redis “for completeness”.
@@ -271,7 +272,7 @@ When touching auth / access:
 4. `/start` still upserts safely (no duplicate PK errors).
 5. Gated handlers still check `is_active` + `subscription_end`.
 6. `None` subscription still means denied (unless product explicitly changes that).
-7. New `User` columns have safe defaults or a migration plan.
+7. New `User` columns have safe defaults and `_SQLITE_USER_COLUMN_DDL` registration.
 8. No JWT / OAuth / cookie / Redis auth introduced.
 9. Russian user-facing refuse/greet strings still consistent.
 10. SQLite path / `DB_URL` / `data/` volume still valid for local and VPS.

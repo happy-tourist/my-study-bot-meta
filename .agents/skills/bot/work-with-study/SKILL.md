@@ -84,7 +84,7 @@ When adding study/subscription behavior, prefer extending the existing `User` mo
 
 - Extend `User` (or add clearly related models) for progress, lesson position, etc. Prefer one coherent schema path.
 - Handlers that need DB must declare `session: AsyncSession`.
-- Schema migrations: still `create_all` only — note migration needs as open questions when altering existing columns.
+- Schema migrations: `init_db` = `create_all` + `_ensure_sqlite_user_columns`. New `User` columns → model + `_SQLITE_USER_COLUMN_DDL` (startup ALTER on VPS volume; no wipe on push).
 
 ### Entry (`main.py`)
 

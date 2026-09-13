@@ -169,8 +169,9 @@ here — put them in `app/handlers.py`, `app/keyboards.py`, `app/states.py`,
 
 1. Prefer `DB_URL` env override; keep the SQLite default for local/Compose.
 2. Engine and `async_session` stay in `app/database.py`.
-3. `init_db()` remains `Base.metadata.create_all` unless migrations are
-   introduced deliberately.
+3. `init_db()` runs `create_all` then `_ensure_sqlite_user_columns` (DDL in
+   `_SQLITE_USER_COLUMN_DDL`). New `User` columns must be registered there so the
+   VPS volume gets ALTER on startup; deploy does not wipe SQLite.
 
 ## Examples
 

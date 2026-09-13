@@ -72,7 +72,7 @@ Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` 
 | **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include router, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
 | **`handlers.py`** | Filters, handlers, greetings / study flow UX, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs |
 | **`auth.py`** | Shared subscription gate helper (`has_active_subscription`) | Telegram send; keyboard markup trees |
-| **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` / `create_all` | Telegram replies; Router registration |
+| **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` (`create_all` + `_ensure_sqlite_user_columns` / `_SQLITE_USER_COLUMN_DDL`) | Telegram replies; Router registration |
 | **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic; background jobs |
 | **`keyboards.py`** | Shared reply/inline builders | DB access; long handler bodies |
 | **`scheduler.py`** | APScheduler job, reminder/expire windows, `Bot.send_message` for expiry DMs | Router handlers; middleware session lifecycle |

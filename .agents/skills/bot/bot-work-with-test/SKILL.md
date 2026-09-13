@@ -45,7 +45,7 @@ Jest, mocha, Vitest, or Colyseus harnesses.
 | Async | `pytest-asyncio` (`asyncio_mode = auto` in `pytest.ini` / `pyproject.toml`) |
 | Framework under test | aiogram 3 Router / Dispatcher — call handlers directly or `dp.feed_raw_update` |
 | FSM | `MemoryStorage` + `FSMContext` / `StorageKey` (no Redis in unit tests) |
-| DB | In-memory `sqlite+aiosqlite:///:memory:` (or temp file); `Base.metadata.create_all` |
+| DB | In-memory `sqlite+aiosqlite:///:memory:` (or temp file); `Base.metadata.create_all`; for column-ensure coverage use legacy DDL + `_ensure_sqlite_user_columns` (`tests/test_database_schema.py`) |
 | Telegram API | Mock `Message` / `CallbackQuery` / `Bot.send_message` (`AsyncMock`) — no real `TG_TOKEN`, no polling |
 | Scheduler | Call `check_subscriptions(..., session_factory=, now=, unit=)` — no live cron |
 
@@ -69,6 +69,7 @@ if needed (`pip install pytest pytest-asyncio`).
 
 | Subject | Test path |
 |---------|-----------|
+| `app/database.py` (`init_db`, `_ensure_sqlite_user_columns`) | `tests/test_database_schema.py` |
 | `app/handlers.py` (trial `/start`, tariffs, topic gate) | `tests/test_handlers_subscription.py` |
 | `app/auth.py` (`has_active_subscription`) | `tests/test_auth.py` |
 | `app/scheduler.py` (windows, expire, harness defaults) | `tests/test_subscription_expiry.py` |

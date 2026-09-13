@@ -4,7 +4,7 @@ description: >-
   Use when creating, changing, reviewing, or debugging SQLAlchemy ORM models in
   the my-study-bot Telegram study bot — DeclarativeBase, Mapped / mapped_column,
   User table users, subscription_end / is_active / trial_used fields, init_db
-  create_all, or extending persistence for subscription / study without parallel
+  create_all + _SQLITE_USER_COLUMN_DDL ensure, or extending persistence for subscription / study without parallel
   stores.
 ---
 
@@ -31,7 +31,7 @@ and side effects live in handlers / study helpers — not in model definitions.
 | ORM models | `app/database.py` |
 | API | SQLAlchemy 2.0: `DeclarativeBase`, `Mapped`, `mapped_column` |
 | Session wiring | `DbSessionMiddleware` injects `session: AsyncSession` into handlers |
-| Boot | `init_db()` → `Base.metadata.create_all` |
+| Boot | `init_db()` → `create_all` + `_ensure_sqlite_user_columns` (DDL from `_SQLITE_USER_COLUMN_DDL`) |
 | Engine / URL | `DB_URL` (default `sqlite+aiosqlite:///data/db.sqlite3`) |
 
 Stack: SQLAlchemy 2.0 + `aiosqlite` (see `requirements.txt`).
@@ -151,16 +151,14 @@ rules inside the model class body.
 
 ```python
 async def init_db():
-    """Создаёт таблицы, если их ещё нет."""
+    """Создаёт таблицы и догоняет недостающие колонки на существующем SQLite."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_sqlite_user_columns)
 ```
 
-- **Today:** `create_all` creates missing tables; it does **not** ALTER existing
-  columns on SQLite.
-- **When schema grows:** plan a migration strategy (Alembic or documented ALTER /
-  recreate) before relying on prod `data/db.sqlite3` picking up new columns.
-  Compose mounts `./data:/app/data` — the DB file survives deploys.
+- **Today:** `create_all` creates missing tables; `_ensure_sqlite_user_columns` runs idempotent `ALTER TABLE` for names listed in `_SQLITE_USER_COLUMN_DDL` (e.g. `trial_used`) so the Compose volume on VPS picks up new columns on container start without SSH wipe.
+- **When adding a column:** update the `User` model **and** append DDL to `_SQLITE_USER_COLUMN_DDL`. Cover with `tests/test_database_schema.py`-style ensure test. Do **not** wipe `data/db.sqlite3` on every deploy — wipe only for intentional reset.
 
 ## Do
 
@@ -171,7 +169,7 @@ async def init_db():
 - Use `BigInteger` for Telegram `id`, `DateTime` for `subscription_end`,
   `Boolean` for `is_active` / `trial_used`.
 - Declare `session: AsyncSession` in handlers; rely on `DbSessionMiddleware`.
-- Note migration needs when changing columns on an existing SQLite file.
+- Register new `users` columns in `_SQLITE_USER_COLUMN_DDL` when changing the model.
 
 ## Don't
 
@@ -179,7 +177,8 @@ async def init_db():
 - Invent a second user/profile store alongside `User` / `users`.
 - Use classic undecorated `Column` style mixed with 2.0 `Mapped` in this package.
 - Replace `BigInteger` Telegram PK with `Integer`.
-- Assume `create_all` migrates existing tables — it only creates missing ones.
+- Assume `create_all` alone migrates existing tables — column adds need `_SQLITE_USER_COLUMN_DDL` + `_ensure_sqlite_user_columns`.
+- Add a mapped column without DDL registration (prod volume will break).
 - Commit secrets or the live `data/db.sqlite3` file.
 
 ## Alignment Checklist
@@ -190,7 +189,7 @@ When changing models:
 2. Types stay: Telegram id `BigInteger`, `subscription_end` `DateTime`, `is_active` / `trial_used` `Boolean`.
 3. Business rules stay in handlers / study helpers — models remain persistence-only.
 4. Prefer extend `User`; justify any new table.
-5. If columns change on an existing DB, plan migrations beyond `create_all`.
+5. If columns change on an existing DB: model + `_SQLITE_USER_COLUMN_DDL` (+ schema ensure test); no deploy wipe.
 6. Middleware still injects `session`; handlers still use `AsyncSession`.
 
 ## Related
