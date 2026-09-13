@@ -1,6 +1,6 @@
 ## Purpose
 
-Фоновая проверка сроков подписки: напоминания пользователю за несколько дней до окончания и деактивация записи после истечения срока (без gate платных функций и без оплаты).
+Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. В рамках сдачи change — временный тест-харнесс (короткая выдача срока из меню «Подписка» и минутные окна), затем финальное прод-поведение с дневными окнами.
 
 ## Traceability
 
@@ -12,8 +12,12 @@
 | SC-EXP-04 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-05 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-06 | covered (`tests/test_subscription_expiry.py`) |
+| SC-EXP-T01 | pending (ручная проверка / later pytest) |
+| SC-EXP-T02 | pending (ручная проверка / later pytest) |
+| SC-EXP-T03 | pending (ручная проверка) |
+| SC-EXP-T04 | pending (проверка кода / rg + pytest перед archive) |
 
-Связь: регистрация и меню — `start/register` (без изменений). Gate платных команд — будущий `subscription/gate` (вне этого change).
+Связь: меню тем — `start/register` (stub «Подписка» расширяется только тестовыми кнопками выдачи). Gate — будущий `subscription/gate`.
 
 ## ADDED Requirements
 
@@ -64,3 +68,43 @@ The system SHALL, on each production daily expiry check, mark as inactive every 
 - **WHEN** the daily expiry check runs
 - **THEN** the system continues processing the remaining matching users
 - **AND** expiry deactivations already determined for other users are still persisted
+
+### Requirement: Temporary test grant controls in subscription section
+
+The system SHALL, while the temporary verification harness is enabled, offer exactly two inline actions in the subscription section that set the current user's subscription to active with an end time approximately one minute or five minutes ahead (UTC), without payment.
+
+#### Scenario [SC-EXP-T01]: Grant one-minute test subscription
+
+- **GIVEN** a registered user opens the subscription section
+- **WHEN** the user chooses the one-minute test subscription action
+- **THEN** that user's record is active with a non-null subscription end about one minute after the action time
+
+#### Scenario [SC-EXP-T02]: Grant five-minute test subscription
+
+- **GIVEN** a registered user opens the subscription section
+- **WHEN** the user chooses the five-minute test subscription action
+- **THEN** that user's record is active with a non-null subscription end about five minutes after the action time
+
+### Requirement: Temporary minute-scale reminder windows for verification
+
+The system SHALL, while the temporary verification harness is enabled, treat reminder lead intervals as 3, 2, and 1 UTC minute(s) (half-open windows analogous to the day-based production rule) and run the expiry check about once per minute, so a five-minute test subscription can receive a soon-to-expire reminder when roughly one minute remains.
+
+#### Scenario [SC-EXP-T03]: Five-minute grant yields soon-expiry reminder then expiry
+
+- **GIVEN** the temporary verification harness is enabled
+- **AND** an active user has a subscription end about five minutes after grant time
+- **WHEN** expiry checks run about once per minute
+- **THEN** the user receives a Russian soon-to-expire reminder when the end falls in the one-minute-ahead window
+- **AND** after the end time passes, the user is marked inactive and receives a Russian expired message
+
+### Requirement: Production schedule and day windows after verification
+
+Before the change is considered complete for production, the system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow, and MUST NOT leave every-minute cron as the permanent schedule.
+
+#### Scenario [SC-EXP-T04]: Production mode restored after verification
+
+- **GIVEN** the temporary verification harness has been used to observe reminders and expiry
+- **WHEN** the change is prepared for production completion
+- **THEN** reminder lead intervals are measured in UTC days (3, 2, and 1)
+- **AND** the expiry check is scheduled once daily in the morning Europe/Moscow
+- **AND** every-minute cron is not the permanent schedule

@@ -2,97 +2,109 @@
 
 Пакет: **bot** (`../my-study-bot`). Мотивация — `proposal.md`. Поведение — `specs/subscription/expiry/spec.md`.
 
-Сейчас: `User.subscription_end` / `is_active` в `app/database.py`; часы модели — naive UTC (`datetime.utcnow`); long-polling в `main.py` с hooks `startup` / `shutdown`; планировщика и gate нет. Чеклист apply — `tasks.md`.
+Уже сделано (частичный apply): `apscheduler`, `app/scheduler.py`, wiring в `main.py`, `tzdata`, pytest по дневным окнам. На main сейчас временно `minute="*"` (проверка на проде). Stub «Подписка» ещё без кнопок выдачи. Чеклист — `tasks.md`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- В процессе бота: `AsyncIOScheduler` + модуль проверки подписок.
-- Напоминания за 3/2/1 UTC-день и деактивация истекших с уведомлением.
-- Старт/стоп планировщика в lifecycle бота.
-- Локальная ускоренная проверка (cron каждую минуту + тестовый user с `subscription_end ≈ now+2d`), затем возврат к прод-расписанию до завершения change.
-- Ошибки Telegram на одного user не рвут весь прогон.
+- Прод-логика expiry: дневные окна 3/2/1 UTC + daily cron 10:00 Europe/Moscow + deactivate.
+- Временный тест-харнесс: minute-cron; remind-окна в **минутах** N∈{3,2,1}; две кнопки в «Подписка» (1 мин / 5 мин).
+- После живой проверки: вернуть дневные окна и прод-cron в коде (MUST перед закрытием change).
+- Ошибки Telegram на одного user не рвут прогон.
 
 **Non-Goals:**
 
-- Gate в handlers, оплата, multi-instance lock, таблица dedup напоминаний.
-- Менять семантику `/start` / topic menu.
+- Gate, оплата, multi-instance lock, dedup напоминаний.
+- Финальный продуктовый UX подписки (кнопки — временный стенд).
+- Менять stubs «Машины» / «Дома».
 
 ## Decisions
 
-### D1 — Часы и расписание (hybrid)
+### D1 — Часы и расписание (hybrid) — финал
 
-- **Сравнение окон дней и `subscription_end`:** naive **UTC** (как в модели и `bot-work-with-auth`).
-- **Прод-cron:** `AsyncIOScheduler(timezone="Europe/Moscow")`, job `cron hour=10, minute=0` (утро по Москве).
-- **Альтернативы:** всё в UTC (проще Docker, хуже «10:00 МСК»); всё в Moscow (нужно хранить/конвертировать даты) — отклонены в пользу hybrid.
-- **Docker:** установить `tzdata` (apt или эквивалент), иначе `Europe/Moscow` на slim-образе может падать.
+- Сравнение окон и `subscription_end`: naive **UTC**.
+- **Прод-cron (итог change):** `hour=10, minute=0`, timezone `Europe/Moscow`.
+- **Docker:** `tzdata` в образе.
 
 ### D2 — Capability
 
-- `subscription/expiry` (не смешивать с будущим `subscription/gate`).
+- `subscription/expiry` (не смешивать с `subscription/gate`).
 
 ### D3 — Deactivate без gate
 
-- В этом change пишем `is_active=False` + сообщение; отказ в handlers — отдельный change. Иначе «отключение» только в данных + UX-уведомление.
+- Пишем `is_active=False` + сообщение; gate — отдельный change.
 
 ### D4 — Один процесс, без dedup
 
-- Один контейнер/процесс как сейчас. Нет колонки «уже напомнили». Прод: один fire в сутки. Ускоренный cron **обязан** быть возвращён, иначе спам.
+- Один контейнер. Нет колонки «уже напомнили». Ускоренный cron и минутные окна **обязаны** быть возвращены к дневному режиму до archive.
 
-### D5 — Стек и файлы
+### D5 — Стек и файлы (ядро expiry)
 
 | Что | Решение |
 |-----|---------|
 | Библиотека | `apscheduler==3.10.4`, `AsyncIOScheduler` |
-| Модуль | новый `app/scheduler.py`: `scheduler`, `check_subscriptions(bot)`, `start_scheduler(bot)`, `stop_scheduler()` |
-| Сессия БД | `async with async_session()` внутри job (не middleware update) |
-| Модель | только существующий `User`; без параллельного store |
-| Wiring | `main.py`: после создания `bot` — в `startup` вызвать `start_scheduler(bot)`; в `shutdown` — `stop_scheduler()` |
-| Выборка remind | `is_active == True`, `subscription_end IS NOT NULL`, end ∈ `[now+N days, now+N+1 day)` для `N in (3,2,1)` |
-| Выборка expire | `is_active == True`, `subscription_end IS NOT NULL`, `subscription_end < now` → `is_active=False`, commit |
-| Send | per-user `try/except` вокруг `bot.send_message` |
-| Тексты | русские, смысл как в исходном черновике (дни / истекла) |
+| Модуль | `app/scheduler.py`: `check_subscriptions`, `start_scheduler`, `stop_scheduler`, чистые хелперы окон |
+| Сессия БД | `async with async_session()` внутри job |
+| Модель | только `User` |
+| Wiring | `startup` → `start_scheduler(bot)`; `shutdown` → `stop_scheduler()` |
+| Прод-выборка remind | end ∈ `[now+N days, now+N+1 day)` для `N in (3,2,1)` |
+| Expire | `subscription_end < now` → `is_active=False`, commit, сообщение |
+| Send | per-user `try/except` |
 
-**Не** класть бизнес-логику expiry только в `main.py`.
+### D6 — Ускоренная проверка (исторически) → заменена D8
 
-### D6 — Локальная ускоренная проверка (обязательный шаг apply)
-
-1. Временно заменить прод-trigger на `cron minute="*"` (каждую минуту); **не** коммитить/не оставлять в финале.
-2. Создать/обновить тестового пользователя (Telegram id того, кто запускает бота): `is_active=True`, `subscription_end = datetime.utcnow() + timedelta(days=2)` (попадает в окно N=2).
-3. Запустить бота, дождаться одного срабатывания, убедиться, что пришло напоминание «через 2 дн.».
-4. Сразу вернуть `hour=10, minute=0` (Europe/Moscow); убрать временный cron из итогового кода.
-5. Тестовую строку в БД можно оставить или сбросить — на усмотрение apply; прод-расписание в коде MUST быть daily.
-
-Опционально: флаг/константа `SCHEDULER_DEBUG_EVERY_MINUTE` только на время шага 1–3, по умолчанию `False` в смерженном коде — предпочтительно явный временный edit + revert, без постоянного debug-флага в проде.
+D6 (SQL seed +2d + временный cron) частично выполнен; живой SC-EXP-02 через SQL на этой машине блокировался сетью. Дальнейшая проверка — через **D8** (кнопки + минутные окна).
 
 ### D7 — Тесты
 
-- Покрыть чистую логику отбора user id / действий (без реального APScheduler и без Telegram), когда появится `tests/`; SC-ID из spec.
-- Пока suite нет — Traceability `pending`; ускоренная проверка D6 закрывает риск «job не шлёт».
+- Pytest чистой логики по **дневным** окнам SC-EXP-01…06 — уже есть; после временного переключения на минуты тесты должны снова зеленеть на **дневной** семантике в финале (или параметризовать unit окна, но прод-канон = дни).
+
+### D8 — Временный тест-харнесс (меню + минуты)
+
+Решения из explore (закрыты разработчиком):
+
+1. Только для теста; постоянные тарифы — later.
+2. Минутные remind-окна — временно, чтобы проверить.
+3. **Две** кнопки (не три).
+
+| Элемент | Решение |
+|---------|---------|
+| Вход | Раздел «Подписка» (`menu:subscription`): текст + две inline-кнопки + «Назад» |
+| Кнопка 1 | «На 1 минуту» → `callback` namespaced (напр. `sub:test:1m`): `is_active=True`, `subscription_end = utcnow()+1 minute` |
+| Кнопка 2 | «На 5 минут» → `sub:test:5m`: `is_active=True`, `subscription_end = utcnow()+5 minutes` |
+| Cron на время проверки | `minute="*"` |
+| Окна remind на время проверки | те же N∈{3,2,1}, но шаг **минута**: `[now+N minutes, now+N+1 minute)` |
+| Тексты remind | временно допустимо «через N минут» / упрощённо то же семейство copy; финал снова «дни» |
+| Ожидание 1м | после истечения — сообщение об истечении (SC-EXP-05 по смыслу) |
+| Ожидание 5м | когда до конца ~1 минута — remind за 1 единицу окна (SC-EXP-03 в минутном режиме); затем expire |
+| После проверки | вернуть дневные окна + `hour=10, minute=0`; убрать `minute="*"` из итогового кода |
+| Кнопки после проверки | оставить до отдельного product-change (не блокируют archive scheduler), либо убрать по желанию apply — default **оставить** с пометкой «тест» в copy |
+
+**Альтернативы отклонены:** one-shot job на user (второй механизм); постоянные минутные окна в проде.
+
+Константа/флаг `EXPIRY_WINDOW_UNIT=day|minute` допустима, если упрощает revert; иначе явный временный edit + revert как в D6.
 
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
 |------|------------|
-| UTC day buckets ≠ «календарный день МСК» у границы суток | Зафиксировано в D1/spec; приемлемо до product TZ |
-| `minute="*"` забыли вернуть → спам | Явный task revert; verify перед archive |
-| Нет gate → `is_active=False` слабо влияет на UX | Out of scope; сообщение об истечении всё же уходит |
-| Два процесса бота → дубли сообщений | Один compose-сервис; не масштабировать replicas |
-| Telegram flood при большой базе | Сейчас мало users; при росте — throttle later |
-| `tzdata` отсутствует в image | Добавить в Dockerfile |
+| Забыли вернуть дни / daily cron → спам и неверные remind | Явные tasks revert; verify `rg` перед archive |
+| Кнопка 1м сразу попадает в окно remind_1 | Принять возможный remind перед expire на первом тике; либо выставлять end чуть меньше 1м — предпочтительно документировать: 1м-сценарий целится в **expire** |
+| Тест-кнопки на проде доступны всем | Временно ок; later — убрать / заменить оплатой |
+| Pytest дневных окон краснеет при minute-unit в коде | Финальный код и тесты — дневные; минутный режим только на окно проверки |
 
 ## Migration Plan
 
-1. Зависимость + `app/scheduler.py` + hooks в `main.py` + `tzdata` в Docker.
-2. Локально: D6 (every minute → seed → observe → revert).
-3. Deploy обычным pipeline; первый прод-fire — в 10:00 Europe/Moscow после выкладки.
-4. Rollback: убрать start scheduler / revert commit; данные `is_active` при необходимости править вручную.
+1. Ядро scheduler + wiring + tzdata + дневные тесты (уже).
+2. Включить тест-харнесс D8 → deploy → проверить 1м и 5м в Telegram.
+3. Revert окон и cron к прод-значениям → deploy.
+4. Sync/archive OpenSpec; product UX подписки — отдельный change.
 
 ## Technical prerequisites (from explore)
 
-Закрыты решениями D1–D6 выше. Открытых блокеров для propose/apply нет.
+D1–D5, D8 закрыты решениями выше. Открытых блокеров нет.
 
 ## Open Questions
 
-Нет (не блокеры): точные emoji в copy; нужен ли env для часа cron позже.
+Нет (не блокеры): точный wording кнопок; оставлять ли кнопки после revert cron.
