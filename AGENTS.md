@@ -51,7 +51,7 @@
 - `python -m venv .venv` / активация `.venv`
 - `pip install -r requirements.txt`
 - `python main.py` — long-polling бот (нужен `.env` с `TG_TOKEN`)
-- `pytest` — когда появится suite в `tests/`
+- `pytest` — suite в `{bot}/tests/` (запускать из корня sibling `my-study-bot`)
 - Docker: `docker compose build` / `docker compose up -d`
 
 ## Kilo Code: lazy loading nested skills

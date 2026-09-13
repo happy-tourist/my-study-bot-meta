@@ -3,8 +3,10 @@ name: bot-work-with-auth
 description: >-
   Use when adding, changing, reviewing, or debugging Telegram bot access and
   subscription gates: User upsert on /start, message.from_user.id as identity,
-  SQLAlchemy User.subscription_end / is_active checks, DbSessionMiddleware
-  session injection, or gated handlers in this aiogram my-study-bot package.
+  SQLAlchemy User.subscription_end / is_active checks, background expiry via
+  app/scheduler.py (reminders + deactivation), temporary test-grant callbacks,
+  DbSessionMiddleware session injection, or gated handlers in this aiogram
+  my-study-bot package.
 ---
 
 # Work With Auth
@@ -26,8 +28,8 @@ that path when choosing skills if it exists. Runtime `app/…` and `main.py`
 paths are relative to this bot repo root.
 
 Related skills (by name — load when that area is in scope):
-`bot-work-with-errors`, `bot-work-with-structure`, `bot-locate-change-points`,
-`bot-verify-code` (when present in meta).
+`work-with-scheduler`, `bot-work-with-errors`, `bot-work-with-structure`,
+`bot-locate-change-points`, `bot-verify-code` (when present in meta).
 
 ## Core Rule
 
@@ -56,6 +58,8 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | DB init | `app/database.py` `init_db()` | `Base.metadata.create_all` if tables missing |
 | Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; greet first visit vs return; attach inline topic menu (`kb.main_menu_kb()`) |
 | Gate | Handlers (or helper) | Load `User` by Telegram id; require `is_active` and valid `subscription_end` |
+| Expiry job | `app/scheduler.py` | Daily cron: remind 3/2/1 days, then set `is_active=False` when expired |
+| Test grants (temp) | `app/handlers.py` + `subscription_kb` | `sub:test:1m` / `5m` set short `subscription_end` for manual checks |
 | Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`) |
 | Storage | `data/db.sqlite3` | Runtime SQLite (gitignored; Compose volume `./data:/app/data`) |
 
@@ -104,6 +108,7 @@ user to the Bot API; the bot only **maps** that id to a local `User` and
 3. If no `User` row: create with defaults (`is_active=True`, `subscription_end=None`); commit; first-visit greeting + `kb.main_menu_kb()`.
 4. If row exists: return greeting + same topic menu (do not recreate).
 5. For paid / study features: reload or reuse `User`; check `is_active` and `subscription_end`; allow or refuse. Menu stubs today are **not** gated.
+6. Background: `app/scheduler.py` (production day windows, cron 10:00 Europe/Moscow) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`. Temporary Subscription-menu buttons can grant 1m/5m for manual testing — they only write `User` fields; the scheduler owns reminders/deactivation.
 
 ## User Model (Access Fields)
 
@@ -191,6 +196,7 @@ def has_active_subscription(user: User, *, now: datetime | None = None) -> bool:
 - Use the same clock basis as stored `subscription_end` (today: naive UTC via `datetime.utcnow` in the model).
 - Prefer injecting `session` and loading `User` in the handler; do not trust FSM state or keyboard `callback_data` as proof of subscription.
 - Admin / grant flows that set `subscription_end` should update the `User` row in SQLite — that **is** the source of truth.
+- Background expiry (reminders + deactivation) belongs in `app/scheduler.py` — see `work-with-scheduler`. Do not duplicate window math in handlers.
 
 ## Middleware And Session
 
@@ -248,7 +254,7 @@ No JWT / OAuth / session secrets. Do not commit `.env` or production tokens.
 
 When touching auth / access:
 
-1. Which piece? `database.User` / middleware / `/start` / gate helper / handler / env / deploy volume.
+1. Which piece? `database.User` / middleware / `/start` / gate helper / handler / scheduler expiry / env / deploy volume.
 2. `DbSessionMiddleware` still registered; handlers still receive `session`.
 3. Identity still `from_user.id` → `User.id`.
 4. `/start` still upserts safely (no duplicate PK errors).

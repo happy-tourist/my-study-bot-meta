@@ -56,7 +56,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 
 #### Bot-wide skills (`.agents/skills/bot/`)
 
-Стек: aiogram 3.22 (Router / Dispatcher / long-polling), SQLAlchemy 2.0 + aiosqlite, python-dotenv, Python 3.13 в Docker (`python:3.13-slim`). Runtime: `../my-study-bot/`. Entry: `main.py` → `asyncio.run(main())` → `dp.start_polling(bot)`. Windows-only SSL/IPv4 `AiohttpSession` — строго под `sys.platform == "win32"`.
+Стек: aiogram 3.22 (Router / Dispatcher / long-polling), SQLAlchemy 2.0 + aiosqlite, APScheduler (expiry cron), python-dotenv, Python 3.13 в Docker (`python:3.13-slim`). Runtime: `../my-study-bot/`. Entry: `main.py` → `asyncio.run(main())` → `dp.start_polling(bot)`. Windows-only SSL/IPv4 `AiohttpSession` — строго под `sys.platform == "win32"`.
 
 | Skill | Когда |
 |-------|--------|
@@ -76,6 +76,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 | [`work-with-keyboards`](skills/bot/work-with-keyboards/SKILL.md) | Reply/Inline builders в `app/keyboards.py`, `callback_data` |
 | [`work-with-fsm`](skills/bot/work-with-fsm/SKILL.md) | `StatesGroup` / `FSMContext`, multi-step forms (не подмена SQLite) |
 | [`work-with-study`](skills/bot/work-with-study/SKILL.md) | Продуктовая study-логика, lessons, subscription-gated learning |
+| [`work-with-scheduler`](skills/bot/work-with-scheduler/SKILL.md) | APScheduler: expiry reminders / deactivation, day vs minute windows, startup/shutdown |
 | [`work-with-env-deploy`](skills/bot/work-with-env-deploy/SKILL.md) | `.env` / Docker Compose / VPS / GHCR / GitHub Actions |
 
 Runtime-пути в skills (`app/…`, `main.py`) — относительно корня sibling-репозитория `my-study-bot`.

@@ -1,6 +1,8 @@
+# subscription/expiry Specification
+
 ## Purpose
 
-Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. В рамках сдачи change — временный тест-харнесс (короткая выдача срока из меню «Подписка» и минутные окна), затем финальное прод-поведение с дневными окнами. **После проверки:** минутные окна и `minute="*"` не остаются прод-MUST; кнопки выдачи MAY остаться как временный UX.
+Фоновая проверка сроков подписки: напоминания до окончания и деактивация после истечения. **Прод-канон:** дневные окна 3/2/1 UTC и ежедневный cron утром Europe/Moscow. Временный минутный харнесс (minute-cron + минутные окна) использовался только для живой проверки и **не** является постоянным прод-поведением. Тестовые кнопки выдачи короткой подписки в меню «Подписка» могут оставаться до отдельного product-change.
 
 ## Traceability
 
@@ -12,14 +14,14 @@
 | SC-EXP-04 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-05 | covered (`tests/test_subscription_expiry.py`) |
 | SC-EXP-06 | covered (`tests/test_subscription_expiry.py`) |
-| SC-EXP-T01 | covered (manual) |
-| SC-EXP-T02 | covered (manual) |
-| SC-EXP-T03 | covered (manual; historical minute harness) |
+| SC-EXP-T01 | covered (manual; temporary test grant UX) |
+| SC-EXP-T02 | covered (manual; temporary test grant UX) |
+| SC-EXP-T03 | covered (manual; historical minute harness — not production) |
 | SC-EXP-T04 | covered (code restore + pytest production defaults) |
 
-Связь: меню тем — `start/register` (stub «Подписка» расширяется только тестовыми кнопками выдачи). Gate — будущий `subscription/gate`.
+Связь: меню тем — `start/register` (stub «Подписка» может содержать временные тест-кнопки). Gate — будущий `subscription/gate`.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Remind active subscribers before expiry
 
@@ -69,9 +71,21 @@ The system SHALL, on each production daily expiry check, mark as inactive every 
 - **THEN** the system continues processing the remaining matching users
 - **AND** expiry deactivations already determined for other users are still persisted
 
+### Requirement: Production schedule and day windows
+
+The system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`). The system MUST NOT use every-minute cron (`minute="*"`) or minute-scale reminder windows as the permanent production schedule.
+
+#### Scenario [SC-EXP-T04]: Production day mode and daily cron
+
+- **GIVEN** the subscription expiry scheduler is configured for production
+- **WHEN** the bot process starts
+- **THEN** reminder lead intervals are measured in UTC days (3, 2, and 1)
+- **AND** the expiry check is scheduled once daily at 10:00 Europe/Moscow
+- **AND** every-minute cron is not the production schedule
+
 ### Requirement: Temporary test grant controls in subscription section
 
-The system MAY keep temporary test-only inline actions in the subscription section that set the current user's subscription to active with an end time approximately one minute or five minutes ahead (UTC), without payment, until a product subscription UX replaces them. These controls do not imply minute-scale production reminder windows.
+The system MAY keep temporary test-only inline actions in the subscription section that set the current user's subscription to active with an end time approximately one minute or five minutes ahead (UTC), without payment, until a product subscription UX replaces them. These controls are **not** payment or tariff product; they do not change the production day-window / daily-cron schedule.
 
 #### Scenario [SC-EXP-T01]: Grant one-minute test subscription
 
@@ -85,26 +99,6 @@ The system MAY keep temporary test-only inline actions in the subscription secti
 - **WHEN** the user chooses the five-minute test subscription action
 - **THEN** that user's record is active with a non-null subscription end about five minutes after the action time
 
-### Requirement: Temporary minute-scale reminder windows for verification (historical)
+### Historical note (not production MUST)
 
-While the temporary verification harness was enabled for live checks, the system treated reminder lead intervals as 3, 2, and 1 UTC minute(s) and ran the expiry check about once per minute. **This is not permanent production behavior** — after verification, production MUST use day windows and daily cron (see below).
-
-#### Scenario [SC-EXP-T03]: Five-minute grant yields soon-expiry reminder then expiry
-
-- **GIVEN** the temporary verification harness is enabled
-- **AND** an active user has a subscription end about five minutes after grant time
-- **WHEN** expiry checks run about once per minute
-- **THEN** the user receives a Russian soon-to-expire reminder when the end falls in the one-minute-ahead window
-- **AND** after the end time passes, the user is marked inactive and receives a Russian expired message
-
-### Requirement: Production schedule and day windows after verification
-
-Before the change is considered complete for production, the system SHALL use day-based reminder windows (3/2/1 UTC days) and a once-daily check in the morning Europe/Moscow (`hour=10`, `minute=0`), and MUST NOT leave every-minute cron as the permanent schedule.
-
-#### Scenario [SC-EXP-T04]: Production mode restored after verification
-
-- **GIVEN** the temporary verification harness has been used to observe reminders and expiry
-- **WHEN** the change is prepared for production completion
-- **THEN** reminder lead intervals are measured in UTC days (3, 2, and 1)
-- **AND** the expiry check is scheduled once daily at 10:00 Europe/Moscow
-- **AND** every-minute cron is not the permanent schedule
+Minute-scale reminder windows and `minute="*"` cron were used only during temporary live verification (SC-EXP-T03). They are **not** permanent production requirements; production behavior is defined by the day-window and daily-cron requirements above.

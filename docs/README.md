@@ -26,7 +26,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); changes/specs в [`
 
 | Ключ projects-map | Путь (от meta) | Документация / контекст |
 |-------------------|----------------|-------------------------|
-| `bot` | `../my-study-bot/` | `{bot}/AGENTS.md` — продукт, стек, handlers / DB / FSM |
+| `bot` | `../my-study-bot/` | `{bot}/AGENTS.md` — продукт, стек, handlers / DB / scheduler / FSM / tests |
 
 OpenSpec-артефакты: [`openspec/`](../openspec/) в **my-study-bot-meta** (не в sibling). Конфиг: [`openspec/config.yaml`](../openspec/config.yaml).
 

@@ -4,9 +4,9 @@ description: >-
   Use when adding, changing, reviewing, or debugging my-study-bot config:
   load_dotenv in main.py / app/database.py, TG_TOKEN / DB_URL, win32
   AiohttpSession SSL+IPv4 bypass vs clean Bot(token=…), Dispatcher /
-  DbSessionMiddleware / init_db / include_router / polling startup, or keeping
-  business logic out of main.py. Not for handler product flows or Docker
-  deploy secrets layout alone.
+  DbSessionMiddleware / init_db / include_router / scheduler startup-shutdown
+  hooks / polling startup, or keeping business logic out of main.py. Not for
+  handler product flows, expiry window math, or Docker deploy secrets alone.
 ---
 
 # Work With Config
@@ -41,8 +41,8 @@ Related package: `../my-study-bot-meta` (docs, OpenSpec, skills).
 | Secrets / contour | Env only — `TG_TOKEN`, `DB_URL`; never hardcode; do not commit `.env` / `.env.server` |
 | Bot construction | `win32`: custom `AiohttpSession` (SSL verify off + IPv4); else `Bot(token=…)` |
 | SSL bypass | **Local Windows VPN/debug only** — never copy into Linux / Docker / production |
-| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` → hooks → `start_polling` |
-| Business logic | Handlers / keyboards / states / models — **not** only inside `main.py` |
+| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` → hooks (`start_scheduler` / `stop_scheduler`) → `start_polling` |
+| Business logic | Handlers / keyboards / states / models / `app/scheduler.py` — **not** only inside `main.py` |
 | DB default | `DB_URL` default `sqlite+aiosqlite:///data/db.sqlite3` |
 
 ## How Env Loading Works
@@ -124,7 +124,8 @@ Order inside `async def main()`:
 4. `dp.update.middleware(DbSessionMiddleware())`
 5. `await init_db()`
 6. `dp.include_router(router)` from `app.handlers`
-7. Register `startup` / `shutdown` hooks
+7. Register `startup` / `shutdown` hooks (`start_scheduler(bot)` /
+   `stop_scheduler()` from `app.scheduler`)
 8. `await dp.start_polling(bot)`
 
 Process entry:
@@ -137,8 +138,9 @@ if __name__ == "__main__":
         print("Bot stopped by user...")
 ```
 
-Prefer thin `main.py`: no study/subscription product logic here — put it in
-`app/handlers.py`, `app/keyboards.py`, `app/states.py`, `app/database.py`.
+Prefer thin `main.py`: no study/subscription product logic or expiry loops
+here — put them in `app/handlers.py`, `app/keyboards.py`, `app/states.py`,
+`app/database.py`, `app/scheduler.py`.
 
 ## Patterns for Changing Config
 

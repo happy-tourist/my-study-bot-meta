@@ -78,6 +78,8 @@ bot: ../my-study-bot
 | `bot.middlewares` | `../my-study-bot/app/middlewares.py` | `DbSessionMiddleware` |
 | `bot.keyboards` | `../my-study-bot/app/keyboards.py` | Inline topic-menu builders (`menu:*`) |
 | `bot.states` | `../my-study-bot/app/states.py` | FSM `StatesGroup` |
+| `bot.scheduler` | `../my-study-bot/app/scheduler.py` | APScheduler expiry job (`check_subscriptions`) |
+| `bot.tests` | `../my-study-bot/tests/` | pytest suite |
 | `bot.data` | `../my-study-bot/data/` | SQLite volume (`db.sqlite3`) |
 | `bot.deploy` | `../my-study-bot/` | `Dockerfile`, `docker-compose.yml`, `.github/workflows/` |
 

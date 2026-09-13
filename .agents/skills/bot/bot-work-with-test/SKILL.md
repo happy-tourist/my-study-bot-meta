@@ -2,36 +2,40 @@
 name: bot-work-with-test
 description: >-
   Use when planning or writing pytest + pytest-asyncio tests for my-study-bot
-  (aiogram 3): User upsert on /start, subscription_end/is_active gates, FSM
+  (aiogram 3): User upsert on /start, subscription_end/is_active gates,
+  app/scheduler.py expiry (day/minute windows, check_subscriptions), FSM
   transitions, or DbSessionMiddleware session injection. Core workflow: test
-  plan (mocks/verify) → write tests/ → run pytest from bot repo root and fix
-  failures. Introduce the suite when adding critical flows; do not invent
-  Jest/mocha/Colyseus patterns.
+  plan (mocks/verify) → write/extend tests/ → run pytest from bot repo root and
+  fix failures. Suite already exists under tests/; extend it for new critical
+  flows — do not invent Jest/mocha/Colyseus patterns.
 trigger: slash
 ---
 
 # Work With Test
 
 Use this skill to plan and write tests for the Telegram study bot
-(`my-study-bot`, aiogram 3). There is **no automated test suite yet** — introduce
-pytest + aiogram testing helpers when adding critical flows (registration,
-subscription gates, FSM). Start with a test plan, then implement tests from
-that plan.
+(`my-study-bot`, aiogram 3). A **pytest suite already exists** under `tests/`
+(e.g. `tests/test_subscription_expiry.py`, `tests/conftest.py`). Extend it when
+adding critical flows (registration, subscription gates, scheduler expiry, FSM).
+Start with a test plan, then implement tests from that plan.
 
-**Paths:** this skill currently lives in **this bot repo** at
-`.agents/skills/bot/` (temporary; later move to **my-study-bot-meta** under
-`.agents/skills/bot/`). Runtime `app/…`, `main.py`, and `tests/…` paths are
-relative to **this repository root**. Sibling meta: `../my-study-bot-meta`.
+**Paths:** canonical skill in **my-study-bot-meta** under
+`.agents/skills/bot/`. Runtime `app/…`, `main.py`, and `tests/…` paths are
+relative to the **bot repository root** (`../my-study-bot`). Sibling meta:
+`../my-study-bot-meta`.
 
 Stack: **pytest**, **pytest-asyncio**, **aiogram 3** (handlers as async
 callables; `Dispatcher.feed_raw_update` for routing / middleware / DI),
-**SQLAlchemy async** + **aiosqlite** (prefer in-memory SQLite for tests).
+**SQLAlchemy async** + **aiosqlite** (prefer in-memory SQLite for tests),
+**APScheduler** helpers via `app/scheduler.py` (call `check_subscriptions` /
+window helpers directly — do not require a running scheduler in unit tests).
 Assert with pytest `assert`. Tests live under `tests/` as `test_*.py`.
 
-Core principle: exercise the public contract handlers expose to Telegram users
-(`/start` greet + User row, subscription gates, FSM replies), not private
-helpers. Prefer documented aiogram 3 testing approaches over inventing Jest,
-mocha, Vitest, or Colyseus harnesses.
+Core principle: exercise the public contract handlers and scheduler expose to
+users (DMs, `User` field updates, `/start` greet), not private helpers unless
+they are the documented pure API (`classify_subscription_action`,
+`reminder_window`). Prefer documented aiogram 3 testing approaches over inventing
+Jest, mocha, Vitest, or Colyseus harnesses.
 
 ## Pytest / aiogram Testing Setup
 
@@ -42,17 +46,17 @@ mocha, Vitest, or Colyseus harnesses.
 | Framework under test | aiogram 3 Router / Dispatcher — call handlers directly or `dp.feed_raw_update` |
 | FSM | `MemoryStorage` + `FSMContext` / `StorageKey` (no Redis in unit tests) |
 | DB | In-memory `sqlite+aiosqlite:///:memory:` (or temp file); `Base.metadata.create_all` |
-| Telegram API | Mock `Message` / `CallbackQuery` (`AsyncMock`) — no real `TG_TOKEN`, no polling |
+| Telegram API | Mock `Message` / `CallbackQuery` / `Bot.send_message` (`AsyncMock`) — no real `TG_TOKEN`, no polling |
+| Scheduler | Call `check_subscriptions(..., session_factory=, now=, unit=)` — no live cron |
 
-Dev deps to add when introducing the suite (pin reasonably; keep out of
-production image if possible):
+Dev deps (ensure present in the bot env; pin reasonably):
 
 ```text
 pytest
 pytest-asyncio
 ```
 
-Optional later: `aiosqlite` already in `requirements.txt`; reuse it for test DB.
+`aiosqlite` is already in `requirements.txt`; reuse it for the test DB.
 
 Do **not** add `jest.config`, mocha, `@colyseus/testing`, Vitest, or Node test
 runners.
@@ -67,9 +71,10 @@ if needed (`pip install pytest pytest-asyncio`).
 |---------|-----------|
 | `app/handlers.py` (`/start`, future commands) | `tests/test_handlers_start.py` (or `tests/test_handlers.py`) |
 | Subscription gates (`subscription_end`, `is_active`) | `tests/test_subscription.py` (add with the gate code) |
+| `app/scheduler.py` (windows, expire, production defaults) | `tests/test_subscription_expiry.py` |
 | `app/states.py` / FSM dialogs | `tests/test_fsm_*.py` |
 | `app/middlewares.py` (`DbSessionMiddleware`) | `tests/test_middleware_db.py` |
-| Shared fixtures (engine, session, bot, dp) | `tests/conftest.py` |
+| Shared fixtures (engine, session_factory, …) | `tests/conftest.py` |
 
 Mirror feature growth under `tests/`; keep imports as `from app.…`. Prefer
 `tests/` over a single giant file once coverage spans more than one area.
@@ -85,16 +90,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 ## Workflow
 
-1. Read the SUT (`app/handlers.py`, `app/database.py` `User`, middleware,
-   `app/states.py` when FSM exists) and note what the user-facing contract is.
+1. Read the SUT (`app/handlers.py`, `app/scheduler.py`, `app/database.py` `User`,
+   middleware, `app/states.py` when FSM exists) and note the user-facing contract.
 2. Produce a test plan with two sections: **What needs to be mocked / stubbed**
    and **What to verify**.
-3. If no suite exists yet: add `pytest` + `pytest-asyncio`, `tests/conftest.py`,
-   and a minimal `pytest.ini` / `pyproject.toml` asyncio mode; then place the
-   first `tests/test_*.py`.
-4. Cover success and failure paths that exist in the SUT (first `/start` vs
-   return, active vs expired subscription, FSM happy path vs wrong state,
-   middleware injects `session`).
+3. Extend existing `tests/` (reuse `conftest.py` fixtures). Only bootstrap
+   `pytest` / `pytest.ini` if the suite is missing on a fresh clone.
+4. Cover success and failure paths (first `/start` vs return, remind/expire
+   windows with `unit="day"` or explicit `unit="minute"`, failed DM does not
+   abort batch, production defaults stay day + daily cron, FSM / middleware).
 5. Run `pytest` from the bot repo root; fix failures before claiming done.
 
 ## Test Plan

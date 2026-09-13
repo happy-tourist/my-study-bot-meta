@@ -3,9 +3,9 @@ name: bot-work-with-structure
 description: >-
   Use when placing or moving code in the my-study-bot Telegram package: main.py
   entry, handlers/routers, SQLAlchemy models, DbSessionMiddleware, keyboards,
-  FSM states, data/sqlite, Docker/Compose/CI, or deciding where command logic vs
-  DB vs shared UI belong. Prefer extending User + injected session; no parallel
-  data path.
+  FSM states, app/scheduler.py APScheduler expiry jobs, data/sqlite, tests/,
+  Docker/Compose/CI, or deciding where command logic vs DB vs shared UI belong.
+  Prefer extending User + injected session; no parallel data path.
 ---
 
 # Work With Structure
@@ -55,8 +55,10 @@ Sibling meta: resolve via `project-map.md` key `my-study-bot-meta`
 | Handlers | `app/handlers.py` | Routers / commands / callbacks (thin orchestration) |
 | Database | `app/database.py` | Engine, `async_session`, `User` model, `init_db()` |
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` injects `session: AsyncSession` |
-| Keyboards | `app/keyboards.py` | Inline topic-menu builders (`main_menu_kb`, `back_to_menu_kb`, `menu:*`) |
+| Keyboards | `app/keyboards.py` | Inline topic-menu builders (`main_menu_kb`, `back_to_menu_kb`, `menu:*`; temp `subscription_kb`) |
+| Scheduler | `app/scheduler.py` | APScheduler expiry job (`check_subscriptions`); start/stop from `main` hooks |
 | FSM | `app/states.py` | aiogram FSM states / groups |
+| Tests | `tests/` | pytest + pytest-asyncio (`test_subscription_expiry.py`, …) |
 | Runtime DB | `data/` | SQLite file (gitignored; Compose volume `./data:/app/data`) |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/` | Image + VPS compose deploy |
 
@@ -66,11 +68,12 @@ Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` 
 
 | Layer | Owns | Does not own |
 |-------|------|--------------|
-| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include router, startup/shutdown hooks | Command replies, queries, FSM steps, keyboard markup |
-| **`handlers.py`** | Filters, handlers, greetings / study flow UX, commit via injected session | Engine creation; second ORM session factory; SSL hacks |
+| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include router, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
+| **`handlers.py`** | Filters, handlers, greetings / study flow UX, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs |
 | **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` / `create_all` | Telegram replies; Router registration |
-| **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic |
+| **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic; background jobs |
 | **`keyboards.py`** | Shared reply/inline builders | DB access; long handler bodies |
+| **`scheduler.py`** | APScheduler job, reminder/expire windows, `Bot.send_message` for expiry DMs | Router handlers; middleware session lifecycle |
 | **`states.py`** | FSM state groups for multi-step dialogs | Persistence; Telegram send calls |
 | **`data/`** | Runtime SQLite file | Source code; secrets |
 | **Docker / CI** | Image, compose, GHCR push + SSH deploy | Product handlers |
@@ -88,9 +91,10 @@ main.py → Bot / Dispatcher / middleware / init_db / include_router
 Allowed:
 
 ```text
-main.py        →  app.handlers, app.database, app.middlewares (wiring only)
+main.py        →  app.handlers, app.database, app.middlewares, app.scheduler (wiring only)
 middlewares    →  app.database (async_session factory)
 handlers       →  app.database (models), app.keyboards, app.states; session via injection
+scheduler      →  app.database (async_session / User), aiogram Bot; own session in job
 keyboards      →  aiogram types only (no DB)
 states         →  aiogram FSM only (no DB / no handlers)
 database       →  SQLAlchemy / aiosqlite / dotenv (no aiogram handlers)
@@ -116,10 +120,11 @@ Decide in this order:
 3. **New user / subscription field?** → extend `User` in `app/database.py`; migrate carefully if SQLite already has rows (`create_all` does not alter columns).
 4. **Reply / inline keyboard?** → builder in `app/keyboards.py`; import from handlers.
 5. **Multi-step dialog?** → states in `app/states.py`; handlers use `FSMContext`.
-6. **Startup wiring (middleware, router, init_db)?** → `main.py` only for registration — not business replies.
-7. **Env / DB URL?** → `.env` locally; Compose `env_file: .env` on VPS; default SQLite under `data/`.
-8. **Deploy / image?** → `Dockerfile`, `docker-compose.yml`, `.github/workflows/` — not product logic.
-9. **Tests (when added)?** → prefer pytest + aiogram testing helpers at repo root; cover registration / subscription gates first.
+6. **Startup wiring (middleware, router, init_db, scheduler start/stop)?** → `main.py` only for registration — not business replies or expiry loops.
+7. **Background subscription expiry / cron?** → `app/scheduler.py`; wire `start_scheduler` / `stop_scheduler` from `main` hooks only.
+8. **Env / DB URL?** → `.env` locally; Compose `env_file: .env` on VPS; default SQLite under `data/`.
+9. **Deploy / image?** → `Dockerfile`, `docker-compose.yml`, `.github/workflows/` — not product logic.
+10. **Tests?** → `tests/` with pytest + pytest-asyncio; cover expiry scheduler and registration / gates.
 
 ### Handlers vs database vs UI — what belongs where
 
@@ -142,9 +147,14 @@ Decide in this order:
 
 - Reusable markup builders; FSM groups for forms / multi-step flows.
 
+**Put in scheduler**
+
+- APScheduler job registration, reminder/expire window math, background DMs and `is_active` deactivation.
+- Own `async_session` (or test `session_factory`) — not middleware-injected `session`.
+
 **Put in main.py**
 
-- `load_dotenv`, Bot construction (win32 branch vs default), Dispatcher, middleware, `init_db`, `include_router`, polling.
+- `load_dotenv`, Bot construction (win32 branch vs default), Dispatcher, middleware, `init_db`, `include_router`, startup/shutdown scheduler hooks, polling.
 
 ### What NOT to put
 
@@ -190,22 +200,24 @@ app/
 ├── database.py      # engine, async_session, User, init_db
 ├── middlewares.py   # DbSessionMiddleware
 ├── keyboards.py     # markup builders
+├── scheduler.py     # APScheduler expiry job
 └── states.py        # FSM StatesGroup stubs / groups
 ```
 
 ### Outside app
 
 ```text
+tests/                       # pytest suite (subscription expiry, …)
 data/db.sqlite3              # runtime (gitignored)
 Dockerfile
 docker-compose.yml           # service bot, env_file, volume ./data:/app/data
 .github/workflows/deploy.yml # GHCR build/push + SSH compose
-requirements.txt
+requirements.txt             # includes apscheduler
 ```
 
 ## Real Composition Examples
 
-**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)`, `start_polling`.
+**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)`, startup → `start_scheduler(bot)`, shutdown → `stop_scheduler()`, `start_polling`.
 
 **Handler + DB** — `cmd_start(message, session: AsyncSession)` selects `User` by Telegram id; creates row on first visit; Russian greet strings.
 
@@ -253,9 +265,11 @@ requirements.txt
 | Session injection | `app/middlewares.py` | per update |
 | Shared markup | `app/keyboards.py` | builders |
 | Multi-step dialogs | `app/states.py` | FSM |
+| Subscription expiry cron | `app/scheduler.py` | APScheduler; day windows + 10:00 Moscow |
+| Tests | `tests/` | pytest-asyncio |
 | SQLite file | `data/` | gitignored; Compose volume |
 | VPS runtime | `docker-compose.yml` | `/home/deploy/my-study-bot` |
-| Meta / OpenSpec / skills | `my-study-bot-meta` via `project-map.md` | canonical docs/skills later |
+| Meta / OpenSpec / skills | `my-study-bot-meta` via `project-map.md` | canonical docs/skills |
 
 ## Common Mistakes
 
@@ -273,7 +287,8 @@ requirements.txt
 
 ## Related Skills
 
-- Canonical copies (when meta exists) → `my-study-bot-meta/.agents/skills/bot/`
+- Canonical copies → `my-study-bot-meta/.agents/skills/bot/`
+- Expiry cron / windows → `work-with-scheduler`
 - Meta agent index → `my-study-bot-meta/.agents/AGENTS.md`
 - Package always-on context → repo root `AGENTS.md` + `project-map.md`
 
@@ -281,7 +296,7 @@ requirements.txt
 
 For structure-only placement tasks, confirm:
 
-- [ ] Correct layer (`main` / `handlers` / `database` / `middlewares` / `keyboards` / `states` / deploy)
+- [ ] Correct layer (`main` / `handlers` / `database` / `middlewares` / `keyboards` / `scheduler` / `states` / `tests` / deploy)
 - [ ] Dependency direction respected (update → middleware → handler → session/DB)
 - [ ] No parallel data path; handlers use injected `AsyncSession`
 - [ ] Business logic not stuffed into `main.py`

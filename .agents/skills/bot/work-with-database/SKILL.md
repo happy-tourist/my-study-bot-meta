@@ -36,7 +36,7 @@ Driver: **aiosqlite**. ORM: **SQLAlchemy 2.0** (`DeclarativeBase`, `mapped_colum
 |-------|---------------|-------|
 | `id` | `BigInteger` PK | Telegram user id (not autoincrement) |
 | `username` | `String(64)`, nullable | Telegram username at register/update time |
-| `subscription_end` | `DateTime`, nullable | Subscription expiry; product gates not wired yet |
+| `subscription_end` | `DateTime`, nullable | Expiry instant; used by `app/scheduler.py` + future handler gates |
 | `is_active` | `Boolean`, `default=True` | Active flag |
 | `created_at` | `DateTime`, `default=datetime.utcnow` | Row creation time |
 
