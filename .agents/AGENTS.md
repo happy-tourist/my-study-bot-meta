@@ -36,6 +36,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 | [`align-code`](skills/align-code/SKILL.md) | Bot: `bot-align-code` + `bot-verify-code` → сводный отчёт |
 | [`commit`](skills/commit/SKILL.md) | Status → stage → commit → **push** по meta + bot (main/master) |
 | [`check-changes`](skills/check-changes/SKILL.md) | Unstaged bot → предложения: добавить/изменить/**удалить** skills, maps, docs, AGENTS.md |
+| [`sync-changes`](skills/sync-changes/SKILL.md) | Сравнение orchestration (config.yaml, align/check/implement/end/commit + связанные) с другим проектом → предложения добавить сюда и туда |
 | [`implement-change`](skills/implement-change/SKILL.md) | Активный change: apply (блоки tasks в субагентах) → align → check-changes → commit |
 | [`end-implement-change`](skills/end-implement-change/SKILL.md) | Закрытие change: update → sync-specs → archive → commit (без вопросов) |
 | [`openspec-propose`](skills/openspec-propose/SKILL.md) | Propose: proposal → specs → design → tasks; при активном change по той же теме — править его, не создавать новый |

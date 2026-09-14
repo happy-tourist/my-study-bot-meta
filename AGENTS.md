@@ -37,7 +37,7 @@
 
 ## Skills (discovery)
 
-- OpenSpec / workspace (этот репозиторий): `.agents/skills/` (`openspec-*`, [`align-code`](.agents/skills/align-code/SKILL.md), [`check-changes`](.agents/skills/check-changes/SKILL.md), [`commit`](.agents/skills/commit/SKILL.md), [`implement-change`](.agents/skills/implement-change/SKILL.md), [`end-implement-change`](.agents/skills/end-implement-change/SKILL.md))
+- OpenSpec / workspace (этот репозиторий): `.agents/skills/` (`openspec-*`, [`align-code`](.agents/skills/align-code/SKILL.md), [`check-changes`](.agents/skills/check-changes/SKILL.md), [`sync-changes`](.agents/skills/sync-changes/SKILL.md), [`commit`](.agents/skills/commit/SKILL.md), [`implement-change`](.agents/skills/implement-change/SKILL.md), [`end-implement-change`](.agents/skills/end-implement-change/SKILL.md))
 - Bot-wide (meta): [`.agents/skills/bot/`](.agents/skills/bot/) — runtime Telegram bot: `../my-study-bot/`
 
 Детали и перечень: [`.agents/AGENTS.md`](.agents/AGENTS.md).
