@@ -39,7 +39,8 @@ context: |
   Домены: start/register, subscription/gate, study/lesson (product flows ещё растут).
 
   Skills roots: .agents/skills/bot/ (aiogram runtime),
-  .agents/skills/ (openspec-*, align-code, check-changes, commit, implement-change, …).
+  .agents/skills/ (openspec-*, align-code, align-meta, review-change, prepare-changes,
+  check-changes, sync-changes, implement-change, end-implement-change, commit).
   AGENTS.md — индекс docs/, OpenSpec и .agents/skills/.
   Пакетный контекст: ../my-study-bot/AGENTS.md.
   При /opsx-apply: читать applyContextFiles из этого config.yaml помимо contextFiles из CLI.
@@ -156,8 +157,11 @@ rules:
   # tasks.md — чеклист реализации
   tasks:
     - 'Дробить по слоям bot (handlers / DB / middleware / FSM / keyboards / tests / deploy); не повторять архитектурные решения — ссылка на design.md'
-    - 'Изучение перед работой (skills, proposal/design/spec фрагменты, аналоги): пунктом в том же ##-блоке, где нужно; НЕ выносить всё чтение в первый «Контекст»-блок'
-    - 'В каждом блоке — только релевантное к шагам блока чтение; общие артефакты change можно кратко упомянуть в первом рабочем блоке'
+    - 'IMPORTANT / ОБЯЗАТЕЛЬНО: изучение перед работой (skills, proposal/design/spec фрагменты, reference-файлы, аналоги) — checkbox-пунктом ВНУТРИ того же ##-блока, где есть шаги с результатом. Формулировка: «Перед работой: …» как X.1, затем X.2+ реализация. ЗАПРЕЩЕНО сваливать всё чтение только в первый «Контекст»/первый блок.'
+    - 'IMPORTANT: в каждом ##-блоке — ТОЛЬКО релевантное к шагам ЭТОГО блока чтение; общие артефакты change можно кратко в первом рабочем блоке, БЕЗ дублирования длинных списков skills/reference по всем секциям.'
+    - 'HARD / ЗАПРЕЩЕНО: ##-блок только из изучения/чтения/«убедиться»/verify без deliverable. Критерий: каждый ##-блок рассчитан на отдельный apply-чат и MUST содержать ≥1 checkbox, который меняет код, конфиг, тесты или явный lint/test/build шаг. Если после «прочитать / сверить / убедиться» нечего коммитить — блока быть не должно: влить изучение в следующий рабочий ##-блок. Антипример: «## Контракт User» с одним пунктом «сверить subscription_end» и без правок/тестов в том же блоке.'
+    - 'Bot — ЗАПРЕЩЕНО в tasks.md: отдельные checkbox/##-блоки только на «сверить поле User», «убедиться что handler есть», «проверить что FSM state уже есть» без правки кода/тестов в том же ##-блоке. Контракт считается доступным из design/proposal; verify-only — вне tasks.'
+    - 'При генерации/правке tasks.md: самопроверка — для каждого ## посчитать checkbox-ы без изменения артефактов репозитория; если их 100% блока — смержить с соседним рабочим блоком до записи файла.'
     - 'Отдельные пункты на тесты где применимо (bot: pytest; иначе compileall / ручной прогон вне tasks)'
     - 'НЕ добавлять пункты ручной проверки / manual smoke / «ручной сценарий» — coverage SC в specs Traceability + автотесты; ручной прогон вне tasks (verify/ops)'
     - 'Bot skills при apply: из .agents/skills/bot/ (locate/align/verify + topic skills)'
@@ -189,3 +193,11 @@ rules:
     - 'WARNING (bot): нет pytest (или явного skip) на новые критичные flows из tasks'
     # --- Общее ---
     - 'SUGGESTION: мелкие отклонения от стиля пакета без влияния на поведение'
+
+# -----------------------------------------------------------------------------
+# operations — guidance для slash/CLI операций (archive и т.п.)
+# -----------------------------------------------------------------------------
+operations:
+  archive:
+    guidance:
+      - Закрытие change: update → sync → archive предпочтительно через skill end-implement-change (не дублировать финализацию в tasks.md).

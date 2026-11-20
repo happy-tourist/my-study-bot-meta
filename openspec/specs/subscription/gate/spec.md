@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Проверка активной подписки перед доступом к тематическим разделам бота: отказ по-русски без активной подписки; раздел выбора тарифов остаётся доступным всегда.
+Проверка активной подписки перед доступом к тематическим разделам бота: отказ по-русски без активной подписки; раздел выбора тарифов остаётся доступным всегда; забаненные получают отказ «доступ закрыт».
 
 ## Traceability
 
@@ -12,8 +12,9 @@
 | SC-GATE-02 | covered (`tests/test_handlers_subscription.py`) |
 | SC-GATE-03 | covered (`tests/test_handlers_subscription.py`) |
 | SC-GATE-04 | covered (`tests/test_handlers_subscription.py` — см. SC-MENU-03) |
+| SC-GATE-05 | covered (`tests/test_handlers_subscription.py` — `test_banned_refused_cars_sc_gate_05`) |
 
-Связь: меню тем — `start/register` (SC-MENU-01/02). Каталог тарифов — `subscription/tariffs`. Деактивация по сроку — `subscription/expiry`.
+Связь: меню тем — `start/register` (SC-MENU-01/02). Каталог тарифов — `subscription/tariffs`. Деактивация по сроку — `subscription/expiry`. Бан и админка — `admin/panel`.
 
 ## Requirements
 
@@ -55,3 +56,15 @@ The system SHALL refuse Cars and Houses when the user has no active subscription
 - **WHEN** the user presses the Subscription section action
 - **THEN** the tariffs screen is shown
 - **AND** the system does not refuse access based on subscription status
+
+### Requirement: Refuse topic sections for banned users
+
+The system SHALL refuse Cars and Houses when the user is marked banned, responding in Russian that access is closed. The system MUST NOT show the topic stub as allowed content, MUST acknowledge the callback, and MUST NOT present the ordinary «subscription required» refusal as the primary outcome for a ban. A banned user MUST also be refused the Subscription tariffs screen with the same access-closed outcome (ban overrides the usual always-open Subscription rule).
+
+#### Scenario [SC-GATE-05]: Banned user is refused Cars with access closed
+
+- **GIVEN** a registered user marked banned
+- **WHEN** the user presses the Cars section action
+- **THEN** the user receives a Russian message that access is closed
+- **AND** the Cars stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged

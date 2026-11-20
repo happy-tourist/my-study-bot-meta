@@ -33,20 +33,23 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 
 | Skill | Когда |
 |-------|--------|
-| [`align-code`](skills/align-code/SKILL.md) | Bot: `bot-align-code` + `bot-verify-code` → сводный отчёт |
+| [`align-code`](skills/align-code/SKILL.md) | Bot: `bot-align-code` + `bot-verify-code` → сводный отчёт (петли + async-гонки) |
+| [`align-meta`](skills/align-meta/SKILL.md) | Качество созданных/изменённых meta-артефактов (OpenSpec/docs/skills/indexes); paste-ready review cards; read-only |
+| [`prepare-changes`](skills/prepare-changes/SKILL.md) | До propose: чаще всего **один** change (норма); дробить только по нужде; пункты работ + проверяемый результат; ⛔ вне стека |
+| [`review-change`](skills/review-change/SKILL.md) | Active change: brief-bot → bot-align-implementability → align-meta (субагенты + «Добавь и поправь…»); resume по state; без propose/apply |
 | [`commit`](skills/commit/SKILL.md) | Status → stage → commit → **push** по meta + bot (main/master) |
-| [`check-changes`](skills/check-changes/SKILL.md) | Unstaged bot → предложения: добавить/изменить/**удалить** skills, maps, docs, AGENTS.md |
-| [`sync-changes`](skills/sync-changes/SKILL.md) | Сравнение orchestration (config.yaml, align/check/implement/end/commit + связанные) с другим проектом → предложения добавить сюда и туда |
-| [`implement-change`](skills/implement-change/SKILL.md) | Активный change: apply (блоки tasks в субагентах) → align → check-changes → commit |
+| [`check-changes`](skills/check-changes/SKILL.md) | Bot diffs (default unstaged; optional full branch) → Hard/Warn/Rec с add/change/delete/**split** (bloat ≥5 → обязательный split) + maps/docs/AGENTS/`openspec/config.yaml` |
+| [`sync-changes`](skills/sync-changes/SKILL.md) | Двусторонний gap-анализ meta с другим проектом: deep-pass + discovery → предложения добавить сюда и туда |
+| [`implement-change`](skills/implement-change/SKILL.md) | Активный change: apply → **align** (`bot-align-code`) → **verify** (`bot-verify-code`) → check-changes → commit; resume — state |
 | [`end-implement-change`](skills/end-implement-change/SKILL.md) | Закрытие change: update → sync-specs → archive → commit (без вопросов) |
-| [`openspec-propose`](skills/openspec-propose/SKILL.md) | Propose: proposal → specs → design → tasks; при активном change по той же теме — править его, не создавать новый |
+| [`openspec-propose`](skills/openspec-propose/SKILL.md) | Propose: proposal → specs → design → tasks; при ровно одном active — всегда править его (отдельный change только по явной просьбе) |
 | [`openspec-new-change`](skills/openspec-new-change/SKILL.md) | Создать change и начать артефакты по схеме |
 | [`openspec-continue-change`](skills/openspec-continue-change/SKILL.md) | Продолжить создание недостающих артефактов change |
 | [`openspec-update-change`](skills/openspec-update-change/SKILL.md) | Правка существующих артефактов change без кода |
 | [`openspec-apply-change`](skills/openspec-apply-change/SKILL.md) | Реализация по `tasks.md` |
 | [`openspec-verify-change`](skills/openspec-verify-change/SKILL.md) | Проверка реализации против артефактов |
 | [`openspec-archive-change`](skills/openspec-archive-change/SKILL.md) | Архивация закрытого change |
-| [`openspec-explore`](skills/openspec-explore/SKILL.md) | Explore mode до/во время change; явно флагает «⛔ нужно решение разработчика» если фича ещё не implementable в проекте |
+| [`openspec-explore`](skills/openspec-explore/SKILL.md) | Explore mode до/во время change; ⛔ блокеры; агентские новые lib/сервисы — только после «изучили / ок брать X?» |
 | [`openspec-sync-specs`](skills/openspec-sync-specs/SKILL.md) | Delta → main specs без archive |
 
 ### Discovery (другие корни)
@@ -61,7 +64,9 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 
 | Skill | Когда |
 |-------|--------|
-| [`bot-align-code`](skills/bot/bot-align-code/SKILL.md) | Audit ветки / диффа против OpenSpec change, аналогов, test readiness; handlers / User / middleware / FSM / keyboards / deploy |
+| [`bot-align-code`](skills/bot/bot-align-code/SKILL.md) | Audit ветки / диффа против OpenSpec change, аналогов, test readiness; handlers / User / middleware / FSM / keyboards / deploy; lifecycle-петли; async-гонки (await до polling / первого scheduler tick) |
+| [`bot-align-implementability`](skills/bot/bot-align-implementability/SKILL.md) | Можно ли реализовать meta claims в bot (FEASIBLE/PARTIAL/…); не «уже ли в HEAD»; не качество meta (`align-meta`) |
+| [`bot-brief-scope`](skills/bot/bot-brief-scope/SKILL.md) | Digest постановки: что должен сделать bot (handlers/FSM/User/gate/UX); reuse/adapt/new; карточки расхождений |
 | [`bot-locate-change-points`](skills/bot/bot-locate-change-points/SKILL.md) | Где править / куда класть новые файлы (без правок кода) |
 | [`bot-verify-code`](skills/bot/bot-verify-code/SKILL.md) | Проверка кода / compliance skills + DRY/KISS/YAGNI |
 | [`bot-work-with-auth`](skills/bot/bot-work-with-auth/SKILL.md) | `/start` upsert + trial, gate/ban, `ADMIN_IDS` / `is_admin` / `is_banned`, admin panel (`handlers_admin`) |
@@ -82,7 +87,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 
 Runtime-пути в skills (`app/…`, `main.py`) — относительно корня sibling-репозитория `my-study-bot`.
 
-Kilo Code: при появлении канона [`../kilo.template.jsonc`](../kilo.template.jsonc); локально `cp kilo.template.jsonc kilo.jsonc` (ignored). Nested skills — `skills.paths` в рабочем `kilo.jsonc`.
+Kilo Code: канон [`../kilo.template.jsonc`](../kilo.template.jsonc); локально `cp kilo.template.jsonc kilo.jsonc` (ignored). Nested skills — `skills.paths` в рабочем `kilo.jsonc`.
 
 ---
 
@@ -92,6 +97,6 @@ Kilo Code: при появлении канона [`../kilo.template.jsonc`](../
 - Capability ID = продуктовый путь (start/register, subscription/gate, study/lesson, …), не имя change.
 - Delta: `openspec/changes/<slug>/specs/<capability-id>/spec.md`
 - Main: `openspec/specs/<capability-id>/spec.md`
-- Типичный Cursor chat workflow: `/opsx-explore` → `/opsx-propose` → review → `/opsx-apply` → `/opsx-sync` → `/opsx-archive`.
+- Типичный Cursor chat workflow: `/opsx-explore` → (`prepare-changes`) → `/opsx-propose` → (`review-change`) → `/opsx-apply` / `implement-change` → `/opsx-sync` → `/opsx-archive` / `end-implement-change`.
 - Артефакты живут в **my-study-bot-meta**, не в sibling. Пути к runtime при apply — через [`docs/projects-map.md`](../docs/projects-map.md) (+ local YAML).
 - Always-on: [`AGENTS.md`](../AGENTS.md).

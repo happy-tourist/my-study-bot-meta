@@ -1,0 +1,38 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  // Nested skill roots (Kilo walk-up does not discover these from monorepo root).
+  // Root .agents/skills/ (openspec-*, commit, align-*, …) are discovered automatically — do not duplicate here.
+  // Sibling clones: docs/projects-map.md (+ projects-map.local.yaml).
+  "skills": {
+    "paths": [
+      ".agents/skills/bot"
+    ]
+  },
+  // Auto-approve tools for workspace + sibling repos under the same parent folder.
+  // Glob rules: last matching rule wins.
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": {
+      "../": "allow",
+      "./": "allow",
+      "*": "ask"
+    },
+    "write": {
+      "../": "allow",
+      "./": "allow",
+      "*": "ask"
+    },
+    "external_directory": {
+      "../": "allow",
+      "./": "allow",
+      "*": "ask"
+    },
+    "bash": "allow",
+    "skill": "allow",
+    "task": "allow"
+  },
+  "snapshot": false
+}

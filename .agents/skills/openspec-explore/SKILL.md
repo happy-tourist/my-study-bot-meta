@@ -1,12 +1,12 @@
 ---
 name: openspec-explore
-description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements; explicitly flags when a feature is not implementable yet because the project lacks a developer decision (libs, uploads, providers, etc.). Use when the user wants to think through something before or during a change.
+description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements; explicitly flags when a feature is not implementable yet because the project lacks a developer decision (libs, uploads, providers, etc.); when the agent itself proposes a new external service/lib, requires user confirmation that they have studied it (skip if already in the user's draft plan). Use when the user wants to think through something before or during a change.
 allowed-tools: Bash(openspec:*)
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec
-  version: "1.0"
+  version: "1.1"
   generatedBy: "1.11.0"
 ---
 
@@ -139,6 +139,22 @@ Explore должен **явно подсветить**, если фичу **не
 
 - **Honest about fit** — лучше рано сказать «в текущем проекте этого ещё нет», чем вести к proposal с дырой
 - **Developer owns unresolved choices** — агент не выбирает за разработчика библиотеку/провайдера/политику, если в проекте нет канона
+
+### Новое в проекте / внешние сервисы (обязательно)
+
+Если в explore **агент сам** предлагает добавить в проект что-то **нового** (особенно внешний сервис/провайдер, новую pip-зависимость под I/O, SaaS API, payment provider, object storage, email/SMS vendor, OAuth app и т.п.) — **нельзя** сразу закладывать это в канон решений, proposal или «готово к propose».
+
+**Сначала** явно попросить подтверждение, что пользователь **изучил** предложенное (docs/pricing/limits/fit) и согласен брать именно это. Пока нет такого подтверждения — держать вариант как гипотезу / строку в ⛔ (или отдельный open thread), не как принятое D*.
+
+| Источник идеи | Что делать |
+|---------------|------------|
+| **Агент предложил** новое (сервис, lib, провайдер, инфру) | Спросить: «изучили / ок брать X?» — ждать явного да; до этого не фиксировать как решение |
+| **Уже есть в черновике плана пользователя** (сообщение, вложение, pasted plan) | **Не** требовать отдельного «изучили»; считать заявленным кандидатом и уточнять только пробелы/блокеры относительно проекта |
+| Уже есть канон в deps / skills / docs / `.env.example` | Не эскалировать как «новое» — следовать канону |
+
+Примеры «нового», которые триггерят правило, когда инициатива у агента: отдельный payment provider вместо уже названного, S3/object storage, Redis, новый OAuth/Telegram Login flow вне канона, отдельный BFF.
+
+Не триггерить на мелочи внутри уже принятого стека (новый handler, колонка `User`, FSM state, keyboard по существующему skill) — там достаточно обычных D* / open questions.
 
 ---
 
@@ -371,6 +387,7 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
 - **Don't bury developer blockers** - Unresolved project decisions (missing libs, no upload strategy, no provider choice, …) must use the **⛔ Нужно решение разработчика** callout; never only a soft “open question”
+- **Don't push agent-proposed new services** - If *you* suggest a new external service/lib/provider not already in the user's draft plan or project canon, get explicit confirmation that the user has studied it and accepts it before treating it as decided. Draft-plan items from the user do not need that extra “studied?” gate.
 - **Don't claim implementable** - If blocking D* remain for the discussed scope, do not say the feature is ready to propose/implement inside this project
 - **Don't auto-capture** - Offer to save insights, don't just do it. Read-only commands and tools need no confirmation. Before the first write-capable action—including `openspec new change` or another command that writes files—name the artifacts or files and proposed changes, ask a direct yes/no question, and wait for explicit confirmation in a separate user message. That confirmation covers only the described scope; ask again before expanding it. Answers to design or clarifying questions are never consent to write.
 - **Don't manually scaffold changes** - Never create a new change directory under `openspec/changes/` by hand. Always use `openspec new change "<name>"` (with `--store <id>` when applicable) so required metadata such as `.openspec.yaml` is created before writing artifacts.

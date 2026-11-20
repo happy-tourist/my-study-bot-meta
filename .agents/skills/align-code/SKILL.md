@@ -4,7 +4,8 @@ description: >-
   Runs bot-align-code + bot-verify-code for the my-study-bot sibling, then
   prints a combined Bot report. Use when the user asks for align-code, full
   bot align, or to audit the bot against requirements and skill compliance
-  in one pass.
+  in one pass (includes handler/lifecycle loops and async races: await gap
+  before polling / first scheduler tick / reply after FSM-DB ready).
 ---
 
 # Align Code — bot
@@ -12,6 +13,8 @@ description: >-
 Оркестратор: для **bot** последовательно выполнить **align-code** и **verify-code**, затем выдать **единый отчёт**.
 
 Скилл **только анализирует и отчитывается** — не правит runtime-код, не коммитит. Правки — только по явной просьбе после отчёта.
+
+Child align **обязан** (Axis C) ловить не только **Handler / lifecycle-петли**, но и **async-гонки**: `await` между готовностью I/O (middleware / routers / `init_db` / `start_scheduler`) и `start_polling`, gap до первого cron tick без готового `Bot`/session factory, или ответ пользователю до commit/FSM-ready. Не ослаблять и не пропускать эти секции дочернего скилла.
 
 ## Когда применять
 
@@ -89,7 +92,7 @@ Align-Code Progress:
 
 Рабочий cwd / git / чтение `app/…`, `main.py` — **корень bot**. Skills читать из meta `.agents/skills/bot/`.
 
-1. Полностью выполнить `bot-align-code` (все оси, формат отчёта дочернего скилла).
+1. Полностью выполнить `bot-align-code` (все оси, формат отчёта дочернего скилла) — включая секции **Handler / lifecycle-петли** и **Async-гонки** (await до polling / первого scheduler tick / reply после FSM-DB).
 2. Полностью выполнить `bot-verify-code` (ветка vs merge-base + working tree; все Always-include skills).
 
 Сохранить результаты для сводки; **не** публиковать отдельным финальным ответом до шага 5 (допустимы краткие прогресс-апдейты).

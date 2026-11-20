@@ -96,7 +96,7 @@ bot: ../my-study-bot
 
 ## Skills discovery
 
-- OpenSpec (meta): `.agents/skills/` (`openspec-*`, [`commit`](../.agents/skills/commit/SKILL.md))
+- OpenSpec (meta): `.agents/skills/` (`openspec-*`, `prepare-changes`, `review-change`, `align-meta`, `implement-change`, [`commit`](../.agents/skills/commit/SKILL.md), …)
 - Bot-wide (meta): [`.agents/skills/bot/`](../.agents/skills/bot/) — runtime bot в `../my-study-bot/`
 - Индекс: [`.agents/AGENTS.md`](../.agents/AGENTS.md)
 

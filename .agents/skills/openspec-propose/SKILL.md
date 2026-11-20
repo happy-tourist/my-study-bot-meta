@@ -1,16 +1,16 @@
 ---
 name: openspec-propose
 description: >-
-  Propose a change with all planning artifacts in one step. If an active
-  OpenSpec change already covers the same work, revise that change instead of
-  creating a new one. Use when the user wants a complete proposal (design,
-  specs, tasks) ready for implementation.
+  Propose a change with all planning artifacts in one step. If exactly one
+  active OpenSpec change exists, always revise that change (fold new scope in)
+  unless the user explicitly asks for a new/separate change. Use when the user
+  wants a complete proposal (design, specs, tasks) ready for implementation.
 allowed-tools: Bash(openspec:*)
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec
-  version: "1.1"
+  version: "1.2"
   generatedBy: "1.11.0"
 ---
 
@@ -62,19 +62,22 @@ When the user is ready to implement, they must start the apply workflow explicit
    | Situation | Action |
    |-----------|--------|
    | No active changes | Create a new change (step 4+) |
-   | User explicitly asks for a **new / separate** change (or unrelated capability/intent) | Create a new change |
-   | Exactly one active change, and the request continues / fixes / extends the same topic or capability | **Update that change** — do **not** create a new directory |
-   | Several active; request clearly matches one (same capability, name, or conversation context) | **Update that change** |
+   | User **explicitly** asks for a **new / separate** change (имя, «отдельный change», «не в текущий») | Create a new change |
+   | Exactly **one** active change | **Always update that change** — fold the new request in. Do **not** create a second directory because the capability/topic «кажется другим» |
+   | Several active; request clearly matches one (name, capability, or conversation) | **Update that change** |
    | Several active and match is ambiguous | Ask which change to update; do not create a new one until resolved |
+
+   **Жёстко:** при ровно одном active **запрещено** решать «это другая фича → `openspec new change`». Единственный выход в новый каталог — явная просьба пользователя про отдельный change (или ноль active).
 
    When updating an existing change:
 
    1. Announce: `Using existing change: <name>` (not creating a new one). Override: user can insist on a new change name.
    2. Follow the revision rules of [`openspec-update-change`](../openspec-update-change/SKILL.md): read all existing artifacts; fold new Why/Scope/Out of scope, requirements/scenarios, design decisions, and **new unchecked** `- [ ]` tasks; keep already `[x]` tasks checked unless the revision invalidates them (then uncheck and note why).
-   3. Keep artifacts coherent in all directions (proposal ↔ specs ↔ design ↔ tasks).
-   4. Do **not** invent a second change folder and “merge later”. If a mistaken new change was already scaffolded in this session for the same work, move its content into the target active change, then delete the mistaken change directory (and its `.openspec.yaml`).
-   5. Skip steps 4–5 (scaffold + create-from-empty). Go to step 6 output for an **update** summary.
-   6. After writes: `openspec validate <name>` and `openspec status --change "<name>"`.
+   3. New capabilities MAY add `specs/<capability-id>/spec.md` under the **same** change directory; do not spawn a sibling change folder.
+   4. Keep artifacts coherent in all directions (proposal ↔ specs ↔ design ↔ tasks).
+   5. Do **not** invent a second change folder and “merge later”. If a mistaken new change was already scaffolded, move its content into the target active change, then delete the mistaken change directory (and its `.openspec.yaml`).
+   6. Skip steps 4–5 (scaffold + create-from-empty). Go to step 6 output for an **update** summary.
+   7. After writes: `openspec validate <name>` and `openspec status --change "<name>"`.
 
 3. **Determine the workflow schema** (new change only)
 
@@ -174,7 +177,7 @@ After completing all artifacts (create **or** update), summarize:
 
 **Guardrails**
 - The request that invoked this workflow authorizes planning only. Any implementation or apply instruction in that request does not carry forward. Do NOT implement the change, start the apply workflow, or edit project code during this workflow. After presenting the artifacts, stop and wait for a new user request to start the apply workflow
-- **Prefer updating an active change** over `openspec new change` when the request continues the same work; never leave a duplicate change folder for the same intent
+- If exactly one active change exists and the user did not explicitly ask for a separate change: **only update that change** — never `openspec new change` for a «different» capability/topic; never leave a duplicate active change folder
 - Create every artifact the apply phase transitively depends on, not just the ids listed in `apply.requires` (new-change path only)
 - Always read dependency artifacts before creating a new one - re-read from disk, not from conversation memory (files may have changed since you last saw them)
 - Ask about ambiguities that would materially change scope, externally observable behavior, compatibility, or acceptance criteria; for minor details, make reasonable assumptions and record them

@@ -1,6 +1,6 @@
 ---
 name: bot-align-code
-description: Use when aligning branch and working-tree changes against the active OpenSpec change (primary), optional pasted clarifications, repository analogues, test readiness, preservation of previous behavior, aiogram handlers (/start upsert+greet), User model (subscription_end / is_active), DbSessionMiddleware session injection, FSM states, reply/inline keyboards, Russian user-facing messages, Windows-only SSL/IPv4 Bot session branch, and Docker Compose / GHCR deploy for my-study-bot.
+description: Use when aligning branch and working-tree changes against the active OpenSpec change (primary), optional pasted clarifications, repository analogues, test readiness, preservation of previous behavior, aiogram handlers (/start upsert+greet), User model (subscription_end / is_active), DbSessionMiddleware session injection, FSM states, reply/inline keyboards, Russian user-facing messages, Windows-only SSL/IPv4 Bot session branch, Docker Compose / GHCR deploy, handler/lifecycle feedback loops, and async races (await gap before polling / first scheduler tick / reply after FSM-DB ready) for my-study-bot.
 ---
 
 # Align Code
@@ -288,7 +288,38 @@ handler / middleware → answer / send / DB
 
 Report as hard `[defect]` when a reachable path deterministically storms messages/DB writes or spins a task/handler loop. If the chain looks risky but proof is incomplete → **Warning** with the suspected cycle edges.
 
-Report hard `defect` only when a reachable state deterministically causes wrong reply, runtime failure, invalid DB state, stuck FSM, unsafe side effect (including message/timer storms), or contract violation.
+### Async races — await gap before polling / first tick / reply-ready (обязательно)
+
+Когда diff/ветка трогает startup в `main.py` (`load_dotenv` / Bot construction / middleware / `include_router` / `init_db` / `start_scheduler` / `start_polling`), shutdown (`stop_scheduler`), APScheduler wiring, или handler path «await I/O → потом FSM set / commit / answer» — **отдельно** проверь гонки: первый inbound update или первый cron tick обрабатывается до готовности middleware/DB/Bot, либо пользователь получает ответ до commit/FSM-ready и следующий update видит устаревшее состояние.
+
+Контекст bot: polling начинает принимать updates сразу после `start_polling`; middleware и routers должны быть зарегистрированы **до** этого. Background `check_subscriptions` открывает свою session через `async_session` / `session_factory` и шлёт через уже созданный `Bot` — первый cron tick (особенно minute-harness) не должен обогнать `start_scheduler(bot)` с валидным bot или обойти `init_db`. В handlers любой `await` между мутацией (commit / `state.set_state`) и user-visible reply без повторного чтения может оставить «ответ как будто готово», пока следующий update ещё видит старые данные.
+
+Для каждой такой цепочки независимо проверь:
+
+1. **Точка готовности** — что означает «можно принимать updates / тики»: middleware на `dp.update`, routers included, `init_db` done, `Bot` constructed, `start_scheduler(bot)` called with that bot.
+2. **Первый критичный inbound** — первый Telegram update после polling, первый scheduler tick (`check_subscriptions`), первый callback после FSM transition — событие без которого gate/UX/expiry ломается.
+3. **Регистрация / wire-up** — где вешаются middleware, routers, startup/shutdown hooks; есть ли повторная проверка DB/FSM перед side effect, если был длинный await.
+4. **Await-gap** — есть ли `await` (сеть, sleep, лишний I/O) **между** готовностью зависимости и моментом, когда первый update/tick её использует. Любой gap → подозревай missed/wrong first handling.
+5. **Идемпотентность после пропуска** — если первый tick/update обработан «слишком рано», исправится ли сам (повторный cron / повторный `/start`) или состояние «застынет» (scheduler не стартовал, middleware отсутствует навсегда в этом процессе) → hard defect.
+6. **Канон порядка startup** — `load_dotenv` → Bot (+ win32 session branch) → middleware → `include_router` → `init_db` → startup: `start_scheduler(bot)` → `start_polling`. `start_polling` **до** middleware/routers/`init_db` — hard `[defect]`. `start_scheduler` без bot / после polling без startup hook — defect или warning по доказательности.
+
+Типичные гонки для флага:
+
+```text
+await start_polling(bot)     // updates already flowing
+# … later …
+dp.update.middleware(...)    // too late — early updates lack session
+start_scheduler(bot)         // first minute-tick may already have been missed / no bot
+```
+
+- `start_polling` до `DbSessionMiddleware` / `include_router` / `init_db`;
+- `start_scheduler` после того, как harness-cron уже мог тикнуть без bot/session_factory;
+- handler: `await` long Telegram/DB call → `state.set_state` / `commit` → user already got earlier «успех» reply, следующий update видит старый FSM/DB;
+- shutdown: `stop_scheduler` после того, как tasks ещё шлют `send_message` без cancel-семантики (см. также lifecycle-петли).
+
+Report as hard `[defect]` when a reachable startup/handler path can process the first update/tick without required middleware/DB/Bot/scheduler wiring, or leave FSM/DB wrong after an await-gap with no further self-heal. If ordering looks risky but proof is incomplete → **Warning** with the await-gap edges.
+
+Report hard `defect` only when a reachable state deterministically causes wrong reply, runtime failure, invalid DB state, stuck FSM, unsafe side effect (including message/timer storms or missed-first-tick races), or contract violation.
 
 Each hard defect includes condition, current behavior, expected invariant/evidence, file/symbol, and minimum scenario. Verdict:
 
@@ -346,7 +377,7 @@ When a changed hunk touches `DbSessionMiddleware`, `app/database.py` / `User`, `
 4. **Platform branch** — SSL/IPv4 hack still win32-only; Linux/Docker path stays clean.
 5. **Runtime vs deploy** — compose `env_file: .env` and `./data:/app/data` still match `DB_URL` default; GHCR image/tag and VPS cwd `/home/deploy/my-study-bot` assumptions not silently broken when AC touches ops.
 6. **Secrets** — `.env` / `.env.server` remain uncommitted; no tokens in workflow scripts beyond existing GHCR/SSH secret usage.
-7. **No handler storms** — thin command/callback handlers stay one-shot per update; no self-reentry or uncleared tasks (see **Handler / lifecycle feedback loops**).
+7. **No handler storms / no startup races** — thin command/callback handlers stay one-shot per update; no self-reentry or uncleared tasks (see **Handler / lifecycle feedback loops**); middleware/routers/`init_db`/`start_scheduler` before `start_polling` (see **Async races**).
 
 Typical regression patterns to flag:
 
@@ -380,6 +411,8 @@ Examples:
 - Columns `subscription_end` / `is_active` exist while AC demands product subscription UX → hard `[missing]` / `[docs-only]` if handlers never gate.
 - Handler / task re-enters itself (or uncleared asyncio loop after shutdown) and storms outbound work → hard `[defect]`.
 - Suspected re-entry without a proven storm path → **Warning** with cycle edges.
+- `start_polling` before middleware/routers/`init_db`, or first scheduler tick without ready `Bot`/session → hard `[defect]`.
+- Suspected await-gap on startup/handler without proven wrong first update → **Warning** with gap edges.
 
 Hard sections below still omit when empty. **Warnings** and **Recommendations** always appear; if empty, a single line `- нет`.
 
@@ -424,6 +457,9 @@ Write in Russian.
 
 ## Handler / lifecycle-петли
 - [defect|warning] <trigger → outbound → re-entry / uncleared task; expected 1 effect vs storm; file/symbol>
+
+## Async-гонки (await до polling / первого tick / reply-ready)
+- [defect|warning] <ready point → await gap → first update/tick/reply sees missing middleware|DB|Bot|FSM; file/symbol>
 
 ## Предупреждения
 - [warning] <risk / ambiguity / likely gap; evidence; what would promote it to hard>

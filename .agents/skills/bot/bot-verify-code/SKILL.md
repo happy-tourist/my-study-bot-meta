@@ -70,10 +70,11 @@ it does **not** allow skipping skills from this list.
 | `work-with-database` | engine, session, SQLite path, no parallel DB |
 | `work-with-env-deploy` | `.env*`, secrets, Docker, Compose, GHCR, Actions |
 | `work-with-keyboards` | reply / inline keyboards (`app/keyboards.py`) |
+| `work-with-scheduler` | APScheduler expiry cron, `start_scheduler` / `stop_scheduler` |
 
 If a new code skill appears under `.agents/skills/bot/` (same kind: how to
 write app code — handlers, middleware, FSM, models, messages, study, DB, env,
-keyboards), include it too. Prefer reading one extra skill over missing a rule.
+keyboards, scheduler), include it too. Prefer reading one extra skill over missing a rule.
 
 If a listed skill file is **missing**, do not invent a parallel rulebook — apply
 **Built-in: Bot conventions** for that concern and continue.
@@ -368,6 +369,7 @@ Use only to decide **where to look harder**, never to drop a skill from Always i
 | `app/keyboards.py` | `work-with-keyboards` |
 | auth / subscription gates | `bot-work-with-auth` |
 | `.env*`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/**` | `work-with-env-deploy` |
+| `app/scheduler.py`, `start_scheduler` / `stop_scheduler`, expiry cron | `work-with-scheduler` |
 | error handling / empty `except` | `bot-work-with-errors` |
 | `app/` layout ownership | `bot-work-with-structure`, `work-with-config` |
 

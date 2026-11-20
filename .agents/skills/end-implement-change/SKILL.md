@@ -127,3 +127,4 @@ End-Implement-Change Progress:
 - Не пропускать фазу commit после успешного archive.
 - Не трогать runtime-код в фазах update/sync/archive (runtime коммитится в фазе 4, если уже изменён ранее).
 - Не создавать PR/MR в этом скилле.
+- Не ослаблять safety `commit` (force, amend, секреты).
