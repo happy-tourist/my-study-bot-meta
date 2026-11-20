@@ -103,12 +103,12 @@ touch SQLite must accept `session: AsyncSession` and use the injected session
 | Trigger | Handler | Notes |
 |---------|---------|-------|
 | `/start` (`CommandStart`) | `cmd_start` | Upsert by Telegram id; first visit grants one-time trial (`trial_used`, 3 min); greet + `kb.main_menu_kb()` |
-| `menu:cars` / `menu:houses` | `menu_cars` / `menu_houses` | Load `User`; `has_active_subscription` → stub content + `back_to_menu_kb`, else refuse + `subscription_required_kb` |
+| `menu:cars` / `menu:houses` / `menu:computers` | `menu_cars` / `menu_houses` / `menu_computers` | Thin wrappers → `_open_gated_topic_stub` (ban → `has_active_subscription` → stub + `back_to_menu_kb`, else refuse + `subscription_required_kb`) |
 | `menu:subscription` | `menu_subscription` | Always open; tariffs list via `tariffs_kb()` (no gate) |
 | `tariff:*` | `tariff_grant` | Grant minutes from `kb.TARIFFS` onto `subscription_end`; set `is_active=True` |
 | `menu:back` | `menu_back` | Restore section-choice prompt + `main_menu_kb()` |
 
-Keyboards live in `app/keyboards.py` (`menu:*`, `TARIFF_PREFIX` / `TARIFFS`). Gate helper: `app/auth.py` `has_active_subscription`. `app/states.py` is still a stub (no FSM for this menu). Study topic content remains stubs; access gate is live.
+Keyboards live in `app/keyboards.py` (`menu:*`, `TARIFF_PREFIX` / `TARIFFS`). Gate math: `app/auth.py` `has_active_subscription` / `is_banned_user`. Shared topic open: `_open_gated_topic_stub` in `app/handlers.py` (pass Russian `section=` title). `app/states.py` is still a stub (no FSM for this menu). Study topic content remains stubs; access gate is live.
 
 ## Layering
 

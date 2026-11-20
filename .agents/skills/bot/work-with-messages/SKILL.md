@@ -35,7 +35,7 @@ From `app/handlers.py`:
 |-----------|------|
 | First `/start` (user created + trial) | `"Привет! Я тебя запомнил 👋\n\nТебе активирован пробный период на 3 дня (3 мин).\n\nВыбери раздел:"` (+ `main_menu_kb`) |
 | Returning user | `f"С возвращением, {message.from_user.first_name}!\n\nВыбери раздел:"` (+ `main_menu_kb`) |
-| Cars / Houses stubs (active sub) | `"Раздел «Машины|Дома»\nЗдесь будет контент."` (+ `back_to_menu_kb`) |
+| Cars / Houses / Computers stubs (active sub) | `"Раздел «Машины|Дома|Компьютеры»\nЗдесь будет контент."` (+ `back_to_menu_kb`) |
 | Gate refuse (no active sub) | `"Доступ к разделу требует активной подписки.\nОформи подписку в разделе «Подписка»."` (+ `subscription_required_kb`) |
 | Subscription tariffs | `"Выбери тариф подписки:"` (+ `tariffs_kb`) |
 | Tariff grant confirm | `"Подписка активирована: {title}.\nДействует до … UTC."` (+ `back_to_menu_kb`) |

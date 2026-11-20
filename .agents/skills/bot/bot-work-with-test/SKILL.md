@@ -132,8 +132,9 @@ Use these categories only when the SUT has relevant behavior:
   `username` set); reply is the first-visit Russian greeting.
 - `/start` return: existing user is not duplicated; return greeting uses
   `first_name`.
-- Subscription gates (when implemented): `is_active` / `subscription_end` allow
-  or block study handlers; expired / inactive gets the deny path.
+- Subscription gates (live): Cars/Houses/Computers via `_open_gated_topic_stub`
+  / `has_active_subscription`; ban → access closed; assert main-menu labels
+  (Машины/Дома/Компьютеры/Подписка) on `/start` and Back.
 - FSM transitions (when implemented): state moves as designed; out-of-order
   messages do not corrupt state; `MemoryStorage` reflects expected state/data.
 - Middleware: `DbSessionMiddleware` puts `session: AsyncSession` into handler
@@ -152,9 +153,11 @@ Verify /start User upsert:
 - Unknown Telegram id: User row created; answer starts with "Привет! Я тебя запомнил 👋" and includes "Выбери раздел:"; `reply_markup` from `main_menu_kb()`
 - Existing id: no second row; answer contains first_name welcome + same topic menu
 
-Verify subscription gate (when implemented):
-- is_active True and subscription_end in future: study handler proceeds
-- expired or is_active False: deny reply / no privileged side effect
+Verify subscription gate (Cars/Houses/Computers — SC-GATE-01…08):
+- active sub: stub text `Раздел «…»\nЗдесь будет контент.` + back keyboard
+- expired / inactive: subscription-required copy + CTA (no stub)
+- banned: «Доступ закрыт.» (not subscription-required)
+- main menu labels include Компьютеры (`_assert_main_topic_labels` helper)
 
 Verify FSM (when implemented):
 - Valid step sequence: state advances; collected data in FSMContext
@@ -200,13 +203,15 @@ the same change.
 
 ### Subscription gates (`subscription_end` / `is_active`)
 
-When product handlers start checking subscription:
+Topic stubs Cars/Houses/Computers are gated today (`tests/test_handlers_subscription.py`):
 
-- Seed `User` rows with future / past `subscription_end` and `is_active`
-  True/False.
-- Assert allow vs deny without hitting Telegram.
-- Prefer one shared gate helper tested once, then thin handler tests — but do
-  not invent a parallel data path; use the existing `User` model.
+- Seed `User` with future / past `subscription_end`, `is_active`, and `is_banned`.
+- Call `menu_cars` / `menu_houses` / `menu_computers` (or shared path via
+  `_open_gated_topic_stub`); assert allow vs deny / ban without Telegram network.
+- Cover SC-GATE-06…08 + SC-MENU-06 when adding or renaming a topic; reuse
+  `_assert_main_topic_labels` for menu label checks.
+- Prefer `has_active_subscription` tested in `tests/test_auth.py`, then thin
+  handler tests — do not invent a parallel data path.
 
 ### FSM transitions
 

@@ -31,14 +31,14 @@ Skills path for now: `.agents/skills/bot/` in this repo (canonical copy may late
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` → `session: AsyncSession` in handlers |
 | Entry | `main.py` | Bot/Dispatcher/polling/router include only — not study rules |
 
-Scaffold today: `/start` registers `User` (first visit grants one-time trial), greets in Russian, and shows an inline topic menu. Cars/Houses are gated via `app/auth.py` `has_active_subscription`; Subscription opens tariffs (grant without payment). Study topic **content** is still stubs — do not claim lessons/progress as shipped. `app/keyboards.py` has topic/tariff/gate CTA builders; `app/states.py` is still a stub.
+Scaffold today: `/start` registers `User` (first visit grants one-time trial), greets in Russian, and shows an inline topic menu. Cars/Houses/Computers are gated via `app/auth.py` `has_active_subscription`; Subscription opens tariffs (grant without payment). Study topic **content** is still stubs — do not claim lessons/progress as shipped. `app/keyboards.py` has topic/tariff/gate CTA builders; `app/states.py` is still a stub.
 
 ### Current vs intended product (scaffold)
 
 | Expectation | Today |
 | --- | --- |
 | Register user on `/start` | Implemented (`User` upsert + trial on first visit + topic menu) |
-| Subscription / study features | Tariffs + Cars/Houses gate live; study lesson content still stubs |
+| Subscription / study features | Tariffs + Cars/Houses/Computers gate live; study lesson content still stubs |
 | FSM forms / keyboards | Topic menu, tariffs, gate CTA; admin builders + `AdminSearchForm` (study FSM still future) |
 | Modular routers | Learner `app/handlers.py` + admin `app/handlers_admin.py`; gate helpers in `app/auth.py` |
 
@@ -109,7 +109,7 @@ Telegram update
 
 ## Implementation Checklist (scaffold → product)
 
-- [ ] Subscription gate before study entry (`has_active_subscription`; Cars/Houses already gated — extend when real lessons land).
+- [ ] Subscription gate before study entry (`has_active_subscription`; Cars/Houses/Computers already gated — extend when real lessons land).
 - [ ] Study commands/callbacks in handlers; FSM states for multi-step lessons/forms.
 - [ ] Extend `User` / related models for progress only as product defines — do not invent a full LMS schema without requirements.
 - [ ] Keyboards for navigation only; business rules outside keyboard-only files.

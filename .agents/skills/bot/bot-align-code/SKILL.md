@@ -203,7 +203,7 @@ Wrong `User` field source/constraint, missing `/start` upsert, handler without i
 
 Score **Постановка: N/10** only from hard omissions (`missing` / `docs-only` / `code-only` / `extra`), not from Warnings or Recommendations.
 
-Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert + one-time trial + topic menu exists; Cars/Houses gated via `app/auth.py` `has_active_subscription`; ban + admin panel (`handlers_admin`, `ADMIN_IDS` / `is_admin` / `is_banned`) exist; Subscription shows tariffs (grant without payment); study **content** still stubs; expiry is on a temporary minute harness. Do not treat topic stubs as paid lesson content.
+Known scaffold gap vs product contract (repository fact — elevate to hard only when AC/docs demand the product surface): `/start` upsert + one-time trial + topic menu exists; Cars/Houses/Computers gated via `app/auth.py` `has_active_subscription`; ban + admin panel (`handlers_admin`, `ADMIN_IDS` / `is_admin` / `is_banned`) exist; Subscription shows tariffs (grant without payment); study **content** still stubs; expiry is on a temporary minute harness. Do not treat topic stubs as paid lesson content.
 
 ## Axis B — Codebase
 

@@ -56,7 +56,7 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at` |
 | DB init | `app/database.py` `init_db()` | `create_all` + `_ensure_sqlite_user_columns` (DDL in `_SQLITE_USER_COLUMN_DDL`) |
 | Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; greet + inline topic menu |
-| Gate | `app/auth.py` + handlers | `has_active_subscription`; `is_admin_user` / `is_banned_user`; Cars/Houses gated; ban → access closed before subscription CTA |
+| Gate | `app/auth.py` + handlers | `has_active_subscription`; `is_admin_user` / `is_banned_user`; Cars/Houses/Computers via `_open_gated_topic_stub`; ban → access closed before subscription CTA |
 | Admin | `app/handlers_admin.py` | `/admin` panel; bootstrap `ADMIN_IDS` + `User.is_admin` |
 | Expiry job | `app/scheduler.py` | Temporary minute windows + minutely cron (restore day + 10:00 MSK with ЮKassa) |
 | Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`), `ADMIN_IDS` (CSV bootstrap admin ids) |
@@ -106,7 +106,7 @@ user to the Bot API; the bot only **maps** that id to a local `User` and
 2. User sends `/start` → handler reads `message.from_user.id` (+ optional `username`).
 3. If no `User` row: create with `trial_used=True`, `is_active=True`, `subscription_end=utcnow()+3 minutes`; commit; first-visit greeting (trial notice) + `kb.main_menu_kb()`.
 4. If row exists: return greeting + same topic menu (do not recreate; do not re-grant trial).
-5. For topic sections Cars/Houses: load `User`; `has_active_subscription` → allow stub or refuse with Russian copy + CTA to Subscription.
+5. For topic sections Cars/Houses/Computers: thin handlers call `_open_gated_topic_stub` (ban → `has_active_subscription` → stub or refuse + Subscription CTA).
 6. Subscription section / `tariff:*` grants: always reachable; write `subscription_end` / `is_active` on grant (no payment provider yet).
 7. Background: `app/scheduler.py` (temporary minute windows, cron `minute="*"`) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`.
 
@@ -178,7 +178,7 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 - Always key off `from_user.id`, never username alone (usernames change / may be absent).
 - Keep Russian user-facing strings consistent unless product copy is being redesigned.
-- After upsert/greet, attach the shared inline topic menu (`main_menu_kb`); Cars/Houses are gated via `has_active_subscription`; Subscription opens tariffs without gate.
+- After upsert/greet, attach the shared inline topic menu (`main_menu_kb`); Cars/Houses/Computers go through `_open_gated_topic_stub` (ban + `has_active_subscription`); Subscription opens tariffs without gate.
 - `/start` should remain the registration path; do not require a separate “sign up” command for MVP.
 - Shared helper lives in `app/auth.py` — import it; do not duplicate gate math in each handler.
 
