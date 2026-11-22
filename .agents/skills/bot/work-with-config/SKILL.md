@@ -4,7 +4,8 @@ description: >-
   Use when adding, changing, reviewing, or debugging my-study-bot config:
   load_dotenv in main.py / app/database.py, TG_TOKEN / DB_URL / ADMIN_IDS, win32
   AiohttpSession SSL+IPv4 bypass vs clean Bot(token=…), Dispatcher /
-  DbSessionMiddleware / init_db / include_router (learner + admin) / scheduler startup-shutdown
+  DbSessionMiddleware / init_db / include_router (learner + admin) / Menu Button
+  startup (`set_my_commands` + `MenuButtonCommands`) / scheduler startup-shutdown
   hooks / polling startup, or keeping business logic out of main.py. Not for
   handler product flows, expiry window math, or Docker deploy secrets alone.
 ---
@@ -41,7 +42,7 @@ Related package: `../my-study-bot-meta` (docs, OpenSpec, skills).
 | Secrets / contour | Env only — `TG_TOKEN`, `DB_URL`, `ADMIN_IDS`; never hardcode; do not commit `.env` / `.env.server` |
 | Bot construction | `win32`: custom `AiohttpSession` (SSL verify off + IPv4); else `Bot(token=…)` |
 | SSL bypass | **Local Windows VPN/debug only** — never copy into Linux / Docker / production |
-| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` (learner + admin) → hooks (`start_scheduler` / `stop_scheduler`) → `start_polling` |
+| Startup wiring | `Dispatcher` → `DbSessionMiddleware` → `init_db()` → `include_router` (learner + admin) → hooks (default Menu Button `set_my_commands` + `MenuButtonCommands`, then `start_scheduler` / `stop_scheduler`) → `start_polling` |
 | Business logic | Handlers / keyboards / states / models / `app/scheduler.py` — **not** only inside `main.py` |
 | DB default | `DB_URL` default `sqlite+aiosqlite:///data/db.sqlite3` |
 
@@ -124,9 +125,12 @@ Order inside `async def main()`:
 3. `dp = Dispatcher()`
 4. `dp.update.middleware(DbSessionMiddleware())`
 5. `await init_db()`
-6. `dp.include_router(router)` from `app.handlers`
-7. Register `startup` / `shutdown` hooks (`start_scheduler(bot)` /
-   `stop_scheduler()` from `app.scheduler`)
+6. `dp.include_router(router)` from `app.handlers` (+ admin router)
+7. Register `startup` / `shutdown` hooks:
+   - **startup:** default learner `set_my_commands(..., BotCommandScopeDefault())` +
+     `set_chat_menu_button(MenuButtonCommands())` via `app.bot_commands.learner_bot_commands`
+     (soft-fail: log and continue), then `start_scheduler(bot)`
+   - **shutdown:** `stop_scheduler()` from `app.scheduler`
 8. `await dp.start_polling(bot)`
 
 Process entry:
@@ -140,8 +144,8 @@ if __name__ == "__main__":
 ```
 
 Prefer thin `main.py`: no study/subscription product logic or expiry loops
-here — put them in `app/handlers.py`, `app/keyboards.py`, `app/states.py`,
-`app/database.py`, `app/scheduler.py`.
+here — put them in `app/handlers.py`, `app/bot_commands.py` (Menu Button lists),
+`app/keyboards.py`, `app/states.py`, `app/database.py`, `app/scheduler.py`.
 
 ## Patterns for Changing Config
 

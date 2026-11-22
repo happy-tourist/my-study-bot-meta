@@ -73,7 +73,8 @@ context: |
   Проект: my-study-bot — aiogram 3.22 (Router / Dispatcher / long-polling),
   SQLAlchemy 2.0 + aiosqlite, python-dotenv, Python 3.13 в Docker (`python:3.13-slim`).
   Entry: main.py → asyncio.run(main()) → Bot / Dispatcher / dp.start_polling(bot).
-  Слои: main.py (startup) → middleware → handlers; persistence User + AsyncSession;
+  Слои: main.py (startup, default Menu Button) → middleware → handlers;
+  Menu Button lists/sync в app/bot_commands.py; persistence User + AsyncSession;
   UI keyboards; multi-step FSM в states; Windows-only SSL/IPv4 session строго под win32.
   Env: TG_TOKEN, DB_URL; deploy Docker Compose + GHCR + GitHub Actions на VPS.
 

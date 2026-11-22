@@ -24,7 +24,8 @@ Coordinate with: `bot-locate-change-points` (where to edit), handlers / FSM in `
 | Builders in `app/keyboards.py` (`InlineKeyboardMarkup` / `ReplyKeyboardMarkup`, `InlineKeyboardBuilder` / `ReplyKeyboardBuilder`, buttons) | Heavy business logic (subscription checks, DB writes, study rules) |
 | Attaching markup via `reply_markup=` in handlers (`import app.keyboards as kb`) | FSM state definitions alone — `app/states.py` |
 | Reply vs Inline choice; `callback_data` shape | Bot token / polling / Windows SSL hacks — `main.py` |
-| Russian button labels aligned with message copy | Admin web UI / HTTP API (none in this package) |
+| Russian button labels aligned with message copy | Telegram **Menu Button** command lists (`BotCommand` / `set_my_commands`) — `app/bot_commands.py` |
+| | Admin web UI / HTTP API (none in this package) |
 
 ## Bot Today
 

@@ -2,10 +2,11 @@
 name: bot-work-with-auth
 description: >-
   Use when adding, changing, reviewing, or debugging Telegram bot access and
-  subscription gates: User upsert on /start, message.from_user.id as identity,
-  SQLAlchemy User.subscription_end / is_active checks, background expiry via
-  app/scheduler.py (reminders + deactivation), DbSessionMiddleware session
-  injection, or gated handlers in this aiogram my-study-bot package.
+  subscription gates: User upsert on /start (plus Menu Button sync), slash
+  unregistered hints, message.from_user.id as identity, SQLAlchemy
+  User.subscription_end / is_active checks, promote/demote Menu sync, background
+  expiry via app/scheduler.py, DbSessionMiddleware session injection, or gated
+  handlers in this aiogram my-study-bot package.
 ---
 
 # Work With Auth
@@ -55,9 +56,10 @@ auth stores. Do not put study/product business rules only inside `main.py`.
 | Middleware | `app/middlewares.py` | Opens `async_session` per update; injects `session: AsyncSession` into handler `data` |
 | User model | `app/database.py` | `User`: `id` (Telegram PK), `username`, `subscription_end`, `is_active`, `trial_used`, `created_at` |
 | DB init | `app/database.py` `init_db()` | `create_all` + `_ensure_sqlite_user_columns` (DDL in `_SQLITE_USER_COLUMN_DDL`) |
-| Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; greet + inline topic menu |
-| Gate | `app/auth.py` + handlers | `has_active_subscription`; `is_admin_user` / `is_banned_user`; Cars/Houses/Computers via `_open_gated_topic_stub`; ban → access closed before subscription CTA |
-| Admin | `app/handlers_admin.py` | `/admin` panel; bootstrap `ADMIN_IDS` + `User.is_admin` |
+| Register | `app/handlers.py` `/start` | Upsert by `message.from_user.id`; first visit grants one-time trial; `sync_commands_for_user` (Menu Button) before reply; greet + inline topic menu |
+| Gate | `app/auth.py` + handlers | `has_active_subscription`; `is_admin_user` / `is_banned_user`; Cars/Houses/Computers via `_open_gated_topic_stub` / slash `_cmd_gated_topic`; slash unregistered → «Сначала нажми /start»; ban → access closed before subscription CTA |
+| Menu commands | `app/bot_commands.py` | Learner/admin `BotCommand` lists; chat-scoped sync (admin vs learner) |
+| Admin | `app/handlers_admin.py` | `/admin` panel; bootstrap `ADMIN_IDS` + `User.is_admin`; promote/demote → `sync_commands_for_user` for target chat |
 | Expiry job | `app/scheduler.py` | Temporary minute windows + minutely cron (restore day + 10:00 MSK with ЮKassa) |
 | Env | `.env` (local / VPS) | `TG_TOKEN` (required), `DB_URL` (default SQLite under `data/`), `ADMIN_IDS` (CSV bootstrap admin ids) |
 | Storage | `data/db.sqlite3` | Runtime SQLite (gitignored; Compose volume `./data:/app/data`) |
@@ -83,13 +85,17 @@ Telegram update (message / callback)
         │
         ├─ /start + missing row
         │     → INSERT User(id, username=…)
-        │     → commit → greet first visit + inline topic menu
+        │     → commit → sync Menu Button → greet first visit + inline topic menu
         │
         ├─ /start + existing row
-        │     → greet return + inline topic menu
+        │     → sync Menu Button (admin vs learner) → greet return + inline topic menu
         │
-        └─ gated feature
+        ├─ slash section (/cars|/houses|/computers|/subscription) without row
+        │     → «Сначала нажми /start» (do not treat as open gate/tariffs)
+        │
+        └─ gated feature (inline or slash, registered)
               → require user row
+              → ban → «Доступ закрыт.»
               → require is_active is True
               → require subscription_end is not None
                  and subscription_end > now (UTC-aware policy as coded)
@@ -104,11 +110,12 @@ user to the Bot API; the bot only **maps** that id to a local `User` and
 
 1. `main.py` registers `DbSessionMiddleware` so every handler can declare `session: AsyncSession`.
 2. User sends `/start` → handler reads `message.from_user.id` (+ optional `username`).
-3. If no `User` row: create with `trial_used=True`, `is_active=True`, `subscription_end=utcnow()+3 minutes`; commit; first-visit greeting (trial notice) + `kb.main_menu_kb()`.
-4. If row exists: return greeting + same topic menu (do not recreate; do not re-grant trial).
-5. For topic sections Cars/Houses/Computers: thin handlers call `_open_gated_topic_stub` (ban → `has_active_subscription` → stub or refuse + Subscription CTA).
-6. Subscription section / `tariff:*` grants: always reachable; write `subscription_end` / `is_active` on grant (no payment provider yet).
-7. Background: `app/scheduler.py` (temporary minute windows, cron `minute="*"`) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`.
+3. If no `User` row: create with `trial_used=True`, `is_active=True`, `subscription_end=utcnow()+3 minutes`; commit; sync Menu Button via `sync_commands_for_user`; first-visit greeting (trial notice) + `kb.main_menu_kb()`.
+4. If row exists: sync Menu Button (`is_admin_user`), then greeting + same topic menu (do not recreate; do not re-grant trial). Banned users still sync, then «Доступ закрыт.»
+5. For topic sections Cars/Houses/Computers (inline or slash): thin handlers call `_open_gated_topic_stub` / `_cmd_gated_topic` (slash unregistered → «Сначала нажми /start»; else ban → `has_active_subscription` → stub or refuse + Subscription CTA).
+6. Subscription section / `tariff:*` grants: always reachable when registered and not banned; write `subscription_end` / `is_active` on grant (no payment provider yet). `/help` is open without `/start`.
+7. Promote/demote in admin panel: after commit, `sync_commands_for_user` for the **target** chat (demote sets learner list — do not only `delete_my_commands`).
+8. Background: `app/scheduler.py` (temporary minute windows, cron `minute="*"`) reminds before expiry and deactivates (`is_active=False`) when `subscription_end < now`.
 
 ## User Model (Access Fields)
 
@@ -178,7 +185,7 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 - Always key off `from_user.id`, never username alone (usernames change / may be absent).
 - Keep Russian user-facing strings consistent unless product copy is being redesigned.
-- After upsert/greet, attach the shared inline topic menu (`main_menu_kb`); Cars/Houses/Computers go through `_open_gated_topic_stub` (ban + `has_active_subscription`); Subscription opens tariffs without gate.
+- After upsert/commit, sync Menu Button (`sync_commands_for_user`) before greet; attach the shared inline topic menu (`main_menu_kb`); Cars/Houses/Computers go through `_open_gated_topic_stub` / slash `_cmd_gated_topic` (ban + `has_active_subscription`); Subscription opens tariffs without gate when registered.
 - `/start` should remain the registration path; do not require a separate “sign up” command for MVP.
 - Shared helper lives in `app/auth.py` — import it; do not duplicate gate math in each handler.
 

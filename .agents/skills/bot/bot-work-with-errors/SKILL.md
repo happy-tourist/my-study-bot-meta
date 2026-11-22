@@ -3,9 +3,9 @@ name: bot-work-with-errors
 description: >-
   Use when adding, changing, reviewing, or debugging error handling in the
   my-study-bot aiogram v3 Telegram bot — handler exceptions, DB session
-  failures, invalid FSM input, subscription denials, Telegram API errors, or
-  aligning expected failures with clear Russian message.answer /
-  callback.answer UX.
+  failures, invalid FSM input, subscription denials, Telegram API errors,
+  Menu Button set_my_commands soft-fail, or aligning expected failures with
+  clear Russian message.answer / callback.answer UX.
 ---
 
 # Work With Errors
@@ -151,6 +151,18 @@ product envelopes:
   error handling. That branch (`sys.platform == "win32"`) is **local VPN/debug
   only**. Linux / Docker / VPS use clean `Bot(token=…)`. Never copy SSL
   `CERT_NONE` into images or “fix SSL errors” playbooks for the server.
+
+### Menu Button soft-fail (intentional)
+
+`set_my_commands` / `set_chat_menu_button` failures must **not** abort product UX:
+
+- **Startup** (`main.py`): catch, `logger.exception`, continue to
+  `start_scheduler` + polling.
+- **Per-chat sync** (`app/bot_commands.sync_commands_for_user`): catch,
+  `logger.exception` with `chat_id` / `is_admin`; callers still greet or confirm
+  after a successful DB commit. Next `/start` re-syncs.
+- This is **not** a license for empty `except: pass` around handlers or commits —
+  always log; never silence DB/handler failures the same way.
 
 ## Logging
 

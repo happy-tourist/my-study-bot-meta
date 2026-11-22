@@ -71,7 +71,8 @@ if needed (`pip install pytest pytest-asyncio`).
 |---------|-----------|
 | `app/database.py` (`init_db`, `_ensure_sqlite_user_columns`) | `tests/test_database_schema.py` |
 | `app/handlers.py` (trial `/start`, tariffs, topic gate, ban) | `tests/test_handlers_subscription.py` |
-| `app/handlers_admin.py` (admin panel) | `tests/test_handlers_admin.py` |
+| `app/bot_commands.py` + slash `/help` / `/start` Menu sync | `tests/test_bot_commands.py` |
+| `app/handlers_admin.py` (admin panel; promote/demote Menu sync) | `tests/test_handlers_admin.py` |
 | `app/auth.py` (`has_active_subscription`, admin/ban helpers) | `tests/test_auth.py` |
 | `app/scheduler.py` (windows, expire, harness defaults) | `tests/test_subscription_expiry.py` |
 | `app/states.py` / FSM dialogs | `tests/test_fsm_*.py` |
@@ -212,6 +213,21 @@ Topic stubs Cars/Houses/Computers are gated today (`tests/test_handlers_subscrip
   `_assert_main_topic_labels` for menu label checks.
 - Prefer `has_active_subscription` tested in `tests/test_auth.py`, then thin
   handler tests — do not invent a parallel data path.
+
+### Menu Button builders + slash commands
+
+Canonical coverage lives in `tests/test_bot_commands.py` (+ promote/demote sync
+assertions in `tests/test_handlers_admin.py`):
+
+- Builders: `learner_bot_commands` / `admin_bot_commands` — names, RU descriptions,
+  learner omits `admin`, section emoji labels match inline where required.
+- Slash: unregistered → «Сначала нажми /start»; ban/gate/stub parity with inline;
+  `/help` without `/start` (learner omits `/admin`, admin includes it).
+- `/start` sync: mock `message.bot.set_my_commands`; order sync **before** greet;
+  admin = `is_admin` flag or bootstrap `ADMIN_IDS`; banned users still sync.
+- Soft-fail: `sync_commands_for_user` must not raise when `set_my_commands` fails.
+- Promote/demote: mock `callback.bot.set_my_commands`; demote **sets** learner list
+  (not only `delete_my_commands`).
 
 ### FSM transitions
 

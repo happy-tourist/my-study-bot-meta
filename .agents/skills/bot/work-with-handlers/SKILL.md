@@ -3,10 +3,11 @@ name: work-with-handlers
 description: >-
   Use when adding, changing, or reviewing aiogram Router handlers in
   my-study-bot: message/callback handlers in app/handlers.py, filters
-  (CommandStart, Command, F, CallbackQuery), trial/tariffs/gate callbacks,
-  DB session injection, or wiring via dp.include_router in main.py. Keep
-  handlers thin — UI in keyboards, gate helper in app/auth.py, multi-step
-  dialogs in states.
+  (CommandStart, Command, F, CallbackQuery), slash sections /help, Menu Button
+  sync via app/bot_commands.py, trial/tariffs/gate callbacks, DB session
+  injection, or wiring via dp.include_router in main.py. Keep handlers thin —
+  UI in keyboards, command lists in bot_commands, gate helper in app/auth.py,
+  multi-step dialogs in states.
 ---
 
 # Work With Handlers
@@ -102,13 +103,16 @@ touch SQLite must accept `session: AsyncSession` and use the injected session
 
 | Trigger | Handler | Notes |
 |---------|---------|-------|
-| `/start` (`CommandStart`) | `cmd_start` | Upsert by Telegram id; first visit grants one-time trial (`trial_used`, 3 min); greet + `kb.main_menu_kb()` |
+| `/start` (`CommandStart`) | `cmd_start` | Upsert by Telegram id; first visit grants one-time trial (`trial_used`, 3 min); `sync_commands_for_user` before reply; greet + `kb.main_menu_kb()` |
+| `/cars` `/houses` `/computers` | `cmd_cars` / … | Unregistered → «Сначала нажми /start»; else `_cmd_gated_topic` → shared `_send_gated_topic` (ban → gate → stub via `message.answer`) |
+| `/subscription` | `cmd_subscription` | Unregistered → `/start` hint; ban → closed; else tariffs (`message.answer`) |
+| `/help` | `cmd_help` | RU guide + commands from `bot_commands` builders; no `/start` required; no topic menu |
 | `menu:cars` / `menu:houses` / `menu:computers` | `menu_cars` / `menu_houses` / `menu_computers` | Thin wrappers → `_open_gated_topic_stub` (ban → `has_active_subscription` → stub + `back_to_menu_kb`, else refuse + `subscription_required_kb`) |
 | `menu:subscription` | `menu_subscription` | Always open; tariffs list via `tariffs_kb()` (no gate) |
 | `tariff:*` | `tariff_grant` | Grant minutes from `kb.TARIFFS` onto `subscription_end`; set `is_active=True` |
 | `menu:back` | `menu_back` | Restore section-choice prompt + `main_menu_kb()` |
 
-Keyboards live in `app/keyboards.py` (`menu:*`, `TARIFF_PREFIX` / `TARIFFS`). Gate math: `app/auth.py` `has_active_subscription` / `is_banned_user`. Shared topic open: `_open_gated_topic_stub` in `app/handlers.py` (pass Russian `section=` title). `app/states.py` is still a stub (no FSM for this menu). Study topic content remains stubs; access gate is live.
+Keyboards live in `app/keyboards.py` (`menu:*`, `TARIFF_PREFIX` / `TARIFFS`). Menu Button lists/sync: `app/bot_commands.py`. Gate math: `app/auth.py` `has_active_subscription` / `is_banned_user`. Shared topic open: `_send_gated_topic` / `_open_gated_topic_stub` / `_cmd_gated_topic` in `app/handlers.py` (pass Russian `section=` title). Study topic content remains stubs; access gate is live.
 
 ## Layering
 
@@ -141,7 +145,8 @@ optional DB write). Not `POST /api/...`.
 2. Add `@router.message(...)` or `@router.callback_query(...)` on the existing
    `router` in `app/handlers.py`.
 3. If DB is needed, declare `session: AsyncSession` and use middleware injection.
-4. Keep the handler short; move keyboards to `keyboards.py`, FSM to `states.py`.
+4. Keep the handler short; move keyboards to `keyboards.py`, FSM to `states.py`,
+   Menu Button `BotCommand` lists/sync to `bot_commands.py`.
 5. Match existing Russian copy style.
 6. Prefer extending `User` for subscription/study fields rather than a new table
    unless the product clearly needs one.
@@ -160,6 +165,7 @@ second SQLite access layer that bypasses middleware.
 | Adding Express/FastAPI routes “for the bot” | Use Router handlers only |
 | Opening `async_session()` inside every handler | Declare `session: AsyncSession` |
 | Fat handlers with inline keyboard + FSM + SQL | Split to `keyboards.py` / `states.py` |
+| Hardcoding Menu Button lists only in `main.py` / handlers | Extend `app/bot_commands.py` + startup/`/start`/promote-demote sync |
 | English user strings next to Russian ones | Keep RU consistent with `/start` |
 | Parallel user store besides `User` | Extend `User` + injected session |
 | Forgetting `dp.include_router` for a new Router | Wire from `main.py` if you split routers |

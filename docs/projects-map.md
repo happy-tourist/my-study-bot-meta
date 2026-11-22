@@ -73,8 +73,9 @@ bot: ../my-study-bot
 | `bot.agents` | `../my-study-bot/AGENTS.md` | продукт / стек / домены bot |
 | `bot.main` | `../my-study-bot/main.py` | entry: Bot / Dispatcher / polling |
 | `bot.app` | `../my-study-bot/app/` | пакет приложения |
-| `bot.handlers` | `../my-study-bot/app/handlers.py` | Learner Router handlers (`/start`, topic menu, tariffs, gate) |
-| `bot.handlers_admin` | `../my-study-bot/app/handlers_admin.py` | Admin panel Router (`/admin`, lists, search, ban/roles/tariffs) |
+| `bot.handlers` | `../my-study-bot/app/handlers.py` | Learner Router handlers (`/start`, slash sections/`/help`, topic menu, tariffs, gate) |
+| `bot.handlers_admin` | `../my-study-bot/app/handlers_admin.py` | Admin panel Router (`/admin`, lists, search, ban/roles/tariffs; promote/demote Menu sync) |
+| `bot.bot_commands` | `../my-study-bot/app/bot_commands.py` | Menu Button `BotCommand` builders + `sync_commands_for_user` |
 | `bot.auth` | `../my-study-bot/app/auth.py` | Subscription gate + admin/ban helpers (`ADMIN_IDS`) |
 | `bot.database` | `../my-study-bot/app/database.py` | engine, User model, `init_db` |
 | `bot.middlewares` | `../my-study-bot/app/middlewares.py` | `DbSessionMiddleware` |

@@ -51,16 +51,17 @@ Sibling meta: resolve via `project-map.md` key `my-study-bot-meta`
 
 | Layer | Path | Role |
 |-------|------|------|
-| Entry | `main.py` | `Bot`, `Dispatcher`, polling, win32 session; wire middleware + routers |
-| Handlers | `app/handlers.py` | Learner routers / commands / callbacks (thin orchestration) |
-| Admin handlers | `app/handlers_admin.py` | Admin panel router (`/admin`, lists, search, card mutations) |
+| Entry | `main.py` | `Bot`, `Dispatcher`, polling, win32 session; wire middleware + routers; startup Menu Button commands |
+| Handlers | `app/handlers.py` | Learner routers / commands / callbacks (thin orchestration; slash sections + `/help`) |
+| Admin handlers | `app/handlers_admin.py` | Admin panel router (`/admin`, lists, search, card mutations; promote/demote Menu Button sync) |
+| Bot commands | `app/bot_commands.py` | `BotCommand` builders + `sync_commands_for_user` (Menu Button lists) |
 | Auth helper | `app/auth.py` | `has_active_subscription`, `is_admin_user` / `is_banned_user`, `ADMIN_IDS` |
 | Database | `app/database.py` | Engine, `async_session`, `User` model, `init_db()` |
 | Middleware | `app/middlewares.py` | `DbSessionMiddleware` injects `session: AsyncSession` |
 | Keyboards | `app/keyboards.py` | Inline builders (topic menu, tariffs, gate CTA, admin `admin:*`) |
 | Scheduler | `app/scheduler.py` | APScheduler expiry job (`check_subscriptions`); start/stop from `main` hooks |
 | FSM | `app/states.py` | aiogram FSM states / groups (`AdminSearchForm`) |
-| Tests | `tests/` | pytest + pytest-asyncio (expiry, auth, trial/tariffs/gate, admin) |
+| Tests | `tests/` | pytest + pytest-asyncio (expiry, auth, trial/tariffs/gate, Menu Button / slash, admin) |
 | Runtime DB | `data/` | SQLite file (gitignored; Compose volume `./data:/app/data`) |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `.github/workflows/` | Image + VPS compose deploy |
 
@@ -70,9 +71,10 @@ Env: `.env` / `.env.server` (gitignored). Vars: `TG_TOKEN` (required), `DB_URL` 
 
 | Layer | Owns | Does not own |
 |-------|------|--------------|
-| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include learner + admin routers, startup/shutdown hooks (incl. scheduler) | Command replies, queries, FSM steps, keyboard markup, expiry loops |
-| **`handlers.py`** | Learner filters/handlers, greetings / study flow UX, ban-aware menu, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs; admin card mutations |
-| **`handlers_admin.py`** | Admin panel Router (`IsAdminFilter`), stats/lists/search FSM, ban/roles/tariff grants | Learner topic stubs; engine/SSL; scheduler |
+| **`main.py`** | Process entry, platform Bot session, middleware registration, `init_db`, include learner + admin routers, startup Menu Button (`set_my_commands` + `MenuButtonCommands`) + scheduler hooks | Command replies, queries, FSM steps, keyboard markup, expiry loops |
+| **`handlers.py`** | Learner filters/handlers, greetings / slash sections / `/help`, ban-aware menu, `/start` command sync, commit via injected session | Engine creation; second ORM session factory; SSL hacks; cron jobs; admin card mutations; BotCommand list builders |
+| **`handlers_admin.py`** | Admin panel Router (`IsAdminFilter`), stats/lists/search FSM, ban/roles/tariff grants; promote/demote sync Menu Button | Learner topic stubs; engine/SSL; scheduler |
+| **`bot_commands.py`** | Learner/admin `BotCommand` lists, `sync_commands_for_user` (chat scope) | Router handlers; DB; inline keyboards |
 | **`auth.py`** | Subscription gate + admin/ban helpers (`has_active_subscription`, `is_admin_user`, `is_banned_user`, `parse_admin_ids`) | Telegram send; keyboard markup trees |
 | **`database.py`** | `User` columns, engine/URL, `async_session`, `init_db` (`create_all` + `_ensure_sqlite_user_columns` / `_SQLITE_USER_COLUMN_DDL`) | Telegram replies; Router registration |
 | **`middlewares.py`** | Open/close session per update; put `session` in handler `data` | Business rules; user upsert logic; background jobs |
@@ -95,9 +97,10 @@ main.py → Bot / Dispatcher / middleware / init_db / include_router
 Allowed:
 
 ```text
-main.py        →  app.handlers, app.handlers_admin, app.database, app.middlewares, app.scheduler (wiring only)
+main.py        →  app.handlers, app.handlers_admin, app.bot_commands, app.database, app.middlewares, app.scheduler (wiring only)
 middlewares    →  app.database (async_session factory)
-handlers / handlers_admin →  app.database (models), app.auth, app.keyboards, app.states; session via injection
+handlers / handlers_admin →  app.database (models), app.auth, app.keyboards, app.bot_commands, app.states; session via injection
+bot_commands   →  aiogram Bot / BotCommand types only (no DB / no routers)
 auth           →  app.database (User type only; no Telegram I/O; may read ADMIN_IDS env)
 scheduler      →  app.database (async_session / User), aiogram Bot; own session in job
 keyboards      →  aiogram types only (no DB)
@@ -201,8 +204,9 @@ main.py    # Bot, Dispatcher, middleware, init_db, include_router, start_polling
 
 ```text
 app/
-├── handlers.py        # Learner Router + commands/callbacks
+├── handlers.py        # Learner Router + commands/callbacks (slash + /help)
 ├── handlers_admin.py  # Admin panel Router (`IsAdminFilter`, lists, search, mutations)
+├── bot_commands.py    # Menu Button BotCommand builders + per-chat sync
 ├── auth.py            # subscription gate + admin/ban helpers (`ADMIN_IDS`)
 ├── database.py        # engine, async_session, User, init_db
 ├── middlewares.py     # DbSessionMiddleware
@@ -224,9 +228,9 @@ requirements.txt             # includes apscheduler
 
 ## Real Composition Examples
 
-**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)` + `dp.include_router(admin_router)`, startup → `start_scheduler(bot)`, shutdown → `stop_scheduler()`, `start_polling`.
+**Startup** — `main.py` loads dotenv, builds Bot (win32 custom session else default), `Dispatcher`, `dp.update.middleware(DbSessionMiddleware())`, `await init_db()`, `dp.include_router(router)` + `dp.include_router(admin_router)`, startup → default learner `set_my_commands` + `MenuButtonCommands` + `start_scheduler(bot)`, shutdown → `stop_scheduler()`, `start_polling`.
 
-**Handler + DB** — `cmd_start(message, session: AsyncSession)` selects `User` by Telegram id; creates row on first visit; ban → «Доступ закрыт.»; admin sees «Админ» on main menu.
+**Handler + DB** — `cmd_start(message, session: AsyncSession)` selects `User` by Telegram id; creates row on first visit; syncs Menu Button via `app/bot_commands.py`; ban → «Доступ закрыт.»; admin sees «Админ» on main menu.
 
 **Middleware** — opens `async_session`, sets `data["session"]`, closes after handler.
 
@@ -236,7 +240,7 @@ requirements.txt             # includes apscheduler
 
 **New command / callback**
 
-1. Add handler on `router` in `app/handlers.py` (or a new router module included from `main.py`).
+1. Add handler on `router` in `app/handlers.py` (or a new router module included from `main.py`). If the command should appear in the Telegram Menu Button, extend `app/bot_commands.py` (and startup/`/start`/promote-demote sync as needed) — do not hardcode lists only in `main.py`.
 2. If DB needed, take `session: AsyncSession` — do not create your own.
 3. Reuse builders from `app/keyboards.py` when markup is shared.
 4. Keep copy in Russian consistent with existing replies.
