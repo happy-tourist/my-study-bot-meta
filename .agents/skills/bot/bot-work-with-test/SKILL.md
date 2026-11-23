@@ -133,9 +133,9 @@ Use these categories only when the SUT has relevant behavior:
   `username` set); reply is the first-visit Russian greeting.
 - `/start` return: existing user is not duplicated; return greeting uses
   `first_name`.
-- Subscription gates (live): Cars/Houses/Computers via `_open_gated_topic_stub`
+- Subscription gates (live): Cars/Houses/Computers/Chinese via `_open_gated_topic_stub`
   / `has_active_subscription`; ban → access closed; assert main-menu labels
-  (Машины/Дома/Компьютеры/Подписка) on `/start` and Back.
+  (Машины/Дома/Компьютеры/Курсы китайского/Подписка) on `/start` and Back.
 - FSM transitions (when implemented): state moves as designed; out-of-order
   messages do not corrupt state; `MemoryStorage` reflects expected state/data.
 - Middleware: `DbSessionMiddleware` puts `session: AsyncSession` into handler
@@ -154,11 +154,11 @@ Verify /start User upsert:
 - Unknown Telegram id: User row created; answer starts with "Привет! Я тебя запомнил 👋" and includes "Выбери раздел:"; `reply_markup` from `main_menu_kb()`
 - Existing id: no second row; answer contains first_name welcome + same topic menu
 
-Verify subscription gate (Cars/Houses/Computers — SC-GATE-01…08):
+Verify subscription gate (Cars/Houses/Computers/Chinese — SC-GATE-01…11):
 - active sub: stub text `Раздел «…»\nЗдесь будет контент.` + back keyboard
 - expired / inactive: subscription-required copy + CTA (no stub)
 - banned: «Доступ закрыт.» (not subscription-required)
-- main menu labels include Компьютеры (`_assert_main_topic_labels` helper)
+- main menu labels include Компьютеры + Курсы китайского (`_assert_main_topic_labels` helper)
 
 Verify FSM (when implemented):
 - Valid step sequence: state advances; collected data in FSMContext
@@ -204,13 +204,13 @@ the same change.
 
 ### Subscription gates (`subscription_end` / `is_active`)
 
-Topic stubs Cars/Houses/Computers are gated today (`tests/test_handlers_subscription.py`):
+Topic stubs Cars/Houses/Computers/Chinese are gated today (`tests/test_handlers_subscription.py`):
 
 - Seed `User` with future / past `subscription_end`, `is_active`, and `is_banned`.
-- Call `menu_cars` / `menu_houses` / `menu_computers` (or shared path via
+- Call `menu_cars` / `menu_houses` / `menu_computers` / `menu_chinese` (or shared path via
   `_open_gated_topic_stub`); assert allow vs deny / ban without Telegram network.
-- Cover SC-GATE-06…08 + SC-MENU-06 when adding or renaming a topic; reuse
-  `_assert_main_topic_labels` for menu label checks.
+- Cover SC-GATE-06…11 + SC-MENU-06/07 when adding or renaming a topic; reuse
+  `_assert_main_topic_labels` for menu label/order checks.
 - Prefer `has_active_subscription` tested in `tests/test_auth.py`, then thin
   handler tests — do not invent a parallel data path.
 
@@ -220,9 +220,10 @@ Canonical coverage lives in `tests/test_bot_commands.py` (+ promote/demote sync
 assertions in `tests/test_handlers_admin.py`):
 
 - Builders: `learner_bot_commands` / `admin_bot_commands` — names, RU descriptions,
-  learner omits `admin`, section emoji labels match inline where required.
-- Slash: unregistered → «Сначала нажми /start»; ban/gate/stub parity with inline;
-  `/help` without `/start` (learner omits `/admin`, admin includes it).
+  learner omits `admin`, section emoji labels match inline (cars/houses/computers/chinese).
+- Slash: unregistered → «Сначала нажми /start»; ban/gate/stub parity with inline
+  (include `cmd_chinese` / SC-CMD-10 alongside other sections); `/help` without `/start`
+  (learner omits `/admin`, admin includes it).
 - `/start` sync: mock `message.bot.set_my_commands`; order sync **before** greet;
   admin = `is_admin` flag or bootstrap `ADMIN_IDS`; banned users still sync.
 - Soft-fail: `sync_commands_for_user` must not raise when `set_my_commands` fails.

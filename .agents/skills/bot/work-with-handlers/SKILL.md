@@ -104,10 +104,10 @@ touch SQLite must accept `session: AsyncSession` and use the injected session
 | Trigger | Handler | Notes |
 |---------|---------|-------|
 | `/start` (`CommandStart`) | `cmd_start` | Upsert by Telegram id; first visit grants one-time trial (`trial_used`, 3 min); `sync_commands_for_user` before reply; greet + `kb.main_menu_kb()` |
-| `/cars` `/houses` `/computers` | `cmd_cars` / … | Unregistered → «Сначала нажми /start»; else `_cmd_gated_topic` → shared `_send_gated_topic` (ban → gate → stub via `message.answer`) |
+| `/cars` `/houses` `/computers` `/chinese` | `cmd_cars` / … / `cmd_chinese` | Unregistered → «Сначала нажми /start»; else `_cmd_gated_topic` → shared `_send_gated_topic` (ban → gate → stub via `message.answer`) |
 | `/subscription` | `cmd_subscription` | Unregistered → `/start` hint; ban → closed; else tariffs (`message.answer`) |
 | `/help` | `cmd_help` | RU guide + commands from `bot_commands` builders; no `/start` required; no topic menu |
-| `menu:cars` / `menu:houses` / `menu:computers` | `menu_cars` / `menu_houses` / `menu_computers` | Thin wrappers → `_open_gated_topic_stub` (ban → `has_active_subscription` → stub + `back_to_menu_kb`, else refuse + `subscription_required_kb`) |
+| `menu:cars` / `menu:houses` / `menu:computers` / `menu:chinese` | `menu_cars` / … / `menu_chinese` | Thin wrappers → `_open_gated_topic_stub` (ban → `has_active_subscription` → stub + `back_to_menu_kb`, else refuse + `subscription_required_kb`) |
 | `menu:subscription` | `menu_subscription` | Always open; tariffs list via `tariffs_kb()` (no gate) |
 | `tariff:*` | `tariff_grant` | Grant minutes from `kb.TARIFFS` onto `subscription_end`; set `is_active=True` |
 | `menu:back` | `menu_back` | Restore section-choice prompt + `main_menu_kb()` |

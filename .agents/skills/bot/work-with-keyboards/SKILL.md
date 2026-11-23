@@ -30,7 +30,7 @@ Coordinate with: `bot-locate-change-points` (where to edit), handlers / FSM in `
 ## Bot Today
 
 - `app/keyboards.py` — builders: `main_menu_kb(show_admin=…)`, `back_to_menu_kb()`, `tariffs_kb()`, `subscription_required_kb()`, admin panel builders; shared callback constants (`MENU_*`, `TARIFF_PREFIX` / `TARIFFS`, `ADMIN_*`).
-- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb(show_admin=…)`; Cars/Houses/Computers stubs use `back_to_menu_kb` when gate allows; Subscription opens `tariffs_kb`; gate refuse uses `subscription_required_kb`.
+- `app/handlers.py` — `import app.keyboards as kb`; `/start` attaches `main_menu_kb(show_admin=…)`; Cars/Houses/Computers/Chinese stubs use `back_to_menu_kb` when gate allows; Subscription opens `tariffs_kb`; gate refuse uses `subscription_required_kb`.
 - `app/handlers_admin.py` — admin builders via same `kb` module (`admin:ulist:` / `admin:blist:` / `admin:u:` / `admin:ban:` — prefixes must not nest under `startswith`).
 - Prefer **factory functions** in `keyboards.py` that return markup; handlers only call them and pass `reply_markup=`. Keep callback filters in sync with shared constants (`F.data == kb.MENU_…`, `F.data.startswith(kb.TARIFF_PREFIX)`, `kb.CLAIM_TRIAL`).
 - `tariffs_kb(show_trial=…)` — optional «Получить пробный период» when `trial_used` is False (legacy users).
@@ -90,13 +90,14 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 MENU_CARS = "menu:cars"
-# … MENU_HOUSES, MENU_COMPUTERS, MENU_SUBSCRIPTION, MENU_BACK …
+# … MENU_HOUSES, MENU_COMPUTERS, MENU_CHINESE, MENU_SUBSCRIPTION, MENU_BACK …
 
 def main_menu_kb() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text="🚗 Машины", callback_data=MENU_CARS)
     b.button(text="🏠 Дома", callback_data=MENU_HOUSES)
     b.button(text="💻 Компьютеры", callback_data=MENU_COMPUTERS)
+    b.button(text="🇨🇳 Курсы китайского", callback_data=MENU_CHINESE)
     # … MENU_SUBSCRIPTION, optional Admin …
     b.adjust(1)
     return b.as_markup()

@@ -1,0 +1,120 @@
+# subscription/gate Delta
+
+Связь: меню и stub «Курсы китайского» — `start/register` (этот change). Базовый gate Машин/Домов/Компьютеров — main `openspec/specs/subscription/gate/spec.md`.
+
+## Traceability
+
+| Scenario ID | Coverage |
+|-------------|----------|
+| SC-GATE-01 | covered-by-reuse (`tests/test_handlers_subscription.py` — Cars unchanged) |
+| SC-GATE-02 | covered-by-reuse (`tests/test_handlers_subscription.py` — Houses unchanged) |
+| SC-GATE-03 | covered-by-reuse (`tests/test_handlers_subscription.py` — Cars refuse) |
+| SC-GATE-04 | covered-by-reuse (`tests/test_handlers_subscription.py` — Subscription always open; unchanged) |
+| SC-GATE-05 | covered-by-reuse (`tests/test_handlers_subscription.py` — banned Cars) |
+| SC-GATE-06 | covered-by-reuse (`tests/test_handlers_subscription.py` — Computers allow) |
+| SC-GATE-07 | covered-by-reuse (`tests/test_handlers_subscription.py` — Computers refuse) |
+| SC-GATE-08 | covered-by-reuse (`tests/test_handlers_subscription.py` — banned Computers) |
+| SC-GATE-09 | covered (`tests/test_handlers_subscription.py` — `test_active_subscriber_opens_chinese_sc_gate_09`) |
+| SC-GATE-10 | covered (`tests/test_handlers_subscription.py` — `test_inactive_refused_chinese_sc_gate_10`) |
+| SC-GATE-11 | covered (`tests/test_handlers_subscription.py` — `test_banned_refused_chinese_sc_gate_11`) |
+
+## MODIFIED Requirements
+
+### Requirement: Allow topic sections only with active subscription
+
+The system SHALL treat a user as having an active subscription only when the user row exists, `is_active` is true, and `subscription_end` is not null and strictly after the check time (same clock basis as stored ends). The system SHALL open the Cars, Houses, Computers, or Chinese courses section stub only when the user has an active subscription.
+
+#### Scenario [SC-GATE-01]: Active subscriber opens Cars
+
+- **GIVEN** a registered user with an active subscription
+- **WHEN** the user presses the Cars section action
+- **THEN** the bot message is updated to the Russian Cars stub
+- **AND** a Back-to-menu control is shown
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-02]: Active subscriber opens Houses
+
+- **GIVEN** a registered user with an active subscription
+- **WHEN** the user presses the Houses section action
+- **THEN** the bot message is updated to the Russian Houses stub
+- **AND** a Back-to-menu control is shown
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-06]: Active subscriber opens Computers
+
+- **GIVEN** a registered user with an active subscription
+- **WHEN** the user presses the Computers section action
+- **THEN** the bot message is updated to the Russian Computers stub text exactly `Раздел «Компьютеры»\nЗдесь будет контент.`
+- **AND** a Back-to-menu control is shown
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-09]: Active subscriber opens Chinese courses
+
+- **GIVEN** a registered user with an active subscription
+- **WHEN** the user presses the Chinese courses section action
+- **THEN** the bot message is updated to the Russian Chinese courses stub text exactly `Раздел «Курсы китайского»\nЗдесь будет контент.`
+- **AND** a Back-to-menu control is shown
+- **AND** the callback is acknowledged
+
+### Requirement: Refuse topic sections without active subscription
+
+The system SHALL refuse Cars, Houses, Computers, and Chinese courses when the user has no active subscription (missing user, inactive flag, missing end, or end not after now). The system SHALL respond in Russian that access requires a subscription, MUST NOT show the topic stub content, SHALL acknowledge the callback, and SHOULD point the user toward the Subscription section. The Subscription tariffs screen MUST remain reachable without an active subscription.
+
+#### Scenario [SC-GATE-03]: Expired or inactive user is refused Cars
+
+- **GIVEN** a registered user without an active subscription
+- **WHEN** the user presses the Cars section action
+- **THEN** the user receives a Russian refusal that a subscription is required
+- **AND** the Cars stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-07]: Expired or inactive user is refused Computers
+
+- **GIVEN** a registered user without an active subscription
+- **WHEN** the user presses the Computers section action
+- **THEN** the user receives a Russian refusal that a subscription is required
+- **AND** the Computers stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-10]: Expired or inactive user is refused Chinese courses
+
+- **GIVEN** a registered user without an active subscription
+- **WHEN** the user presses the Chinese courses section action
+- **THEN** the user receives a Russian refusal that a subscription is required
+- **AND** the Chinese courses stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-04]: Subscription section stays open without active subscription
+
+- **GIVEN** a registered user without an active subscription
+- **WHEN** the user presses the Subscription section action
+- **THEN** the tariffs screen is shown
+- **AND** the system does not refuse access based on subscription status
+
+### Requirement: Refuse topic sections for banned users
+
+The system SHALL refuse Cars, Houses, Computers, and Chinese courses when the user is marked banned, responding in Russian that access is closed. The system MUST NOT show the topic stub as allowed content, MUST acknowledge the callback, and MUST NOT present the ordinary «subscription required» refusal as the primary outcome for a ban. A banned user MUST also be refused the Subscription tariffs screen with the same access-closed outcome (ban overrides the usual always-open Subscription rule).
+
+#### Scenario [SC-GATE-05]: Banned user is refused Cars with access closed
+
+- **GIVEN** a registered user marked banned
+- **WHEN** the user presses the Cars section action
+- **THEN** the user receives a Russian message that access is closed
+- **AND** the Cars stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-08]: Banned user is refused Computers with access closed
+
+- **GIVEN** a registered user marked banned
+- **WHEN** the user presses the Computers section action
+- **THEN** the user receives a Russian message that access is closed
+- **AND** the Computers stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged
+
+#### Scenario [SC-GATE-11]: Banned user is refused Chinese courses with access closed
+
+- **GIVEN** a registered user marked banned
+- **WHEN** the user presses the Chinese courses section action
+- **THEN** the user receives a Russian message that access is closed
+- **AND** the Chinese courses stub content is not shown as an allowed section screen
+- **AND** the callback is acknowledged

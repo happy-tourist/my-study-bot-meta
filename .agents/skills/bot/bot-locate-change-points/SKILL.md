@@ -52,7 +52,7 @@ Handlers are still thin; prefer extending existing layers rather than inventing 
 | Expectation | Today |
 |-------------|--------|
 | Register user on `/start` | Implemented (`User` upsert + one-time trial + topic menu; ban → access closed; Admin button when admin) |
-| Subscription / study features | Tariffs + Cars/Houses/Computers gate via `has_active_subscription`; ban overrides; study content still stubs |
+| Subscription / study features | Tariffs + Cars/Houses/Computers/Chinese gate via `has_active_subscription`; ban overrides; study content still stubs |
 | FSM forms / keyboards | Topic menu, tariffs, gate CTA, admin builders; `AdminSearchForm` for admin search |
 | Modular routers | Learner `app/handlers.py` + admin `app/handlers_admin.py`; both included from `main.py` |
 | `.env.example` | Missing — vars documented in `AGENTS.md` |
@@ -63,7 +63,8 @@ Handlers are still thin; prefer extending existing layers rather than inventing 
 | Trigger | Behavior |
 |---------|----------|
 | `/start` (`CommandStart`) | Create `User` if missing (trial); greet; topic menu (Admin if admin); banned → «Доступ закрыт.» |
-| `menu:cars` / `menu:houses` / `menu:computers` | Ban check first; then `has_active_subscription`; stub or refuse + CTA |
+| `/cars` `/houses` `/computers` `/chinese` | Unregistered → «Сначала нажми /start»; else same ban → gate → stub as inline (new message) |
+| `menu:cars` / `menu:houses` / `menu:computers` / `menu:chinese` | Ban check first; then `has_active_subscription`; stub or refuse + CTA |
 | `menu:subscription` | Ban → closed; otherwise tariffs list |
 | `tariff:*` / `trial:claim` | Ban check; grant minutes / one-time trial |
 | `menu:back` | Restore section-choice + main menu (Admin if admin) |

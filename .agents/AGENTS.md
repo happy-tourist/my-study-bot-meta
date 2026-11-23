@@ -69,7 +69,7 @@ OpenSpec: [`openspec/config.yaml`](../openspec/config.yaml); артефакты 
 | [`bot-brief-scope`](skills/bot/bot-brief-scope/SKILL.md) | Digest постановки: что должен сделать bot (handlers/FSM/User/gate/UX); reuse/adapt/new; карточки расхождений |
 | [`bot-locate-change-points`](skills/bot/bot-locate-change-points/SKILL.md) | Где править / куда класть новые файлы (без правок кода) |
 | [`bot-verify-code`](skills/bot/bot-verify-code/SKILL.md) | Проверка кода / compliance skills + DRY/KISS/YAGNI |
-| [`bot-work-with-auth`](skills/bot/bot-work-with-auth/SKILL.md) | `/start` upsert + trial + Menu sync, gate/ban/slash unregistered, `ADMIN_IDS` / `is_admin` / `is_banned`, promote/demote Menu sync |
+| [`bot-work-with-auth`](skills/bot/bot-work-with-auth/SKILL.md) | `/start` upsert + trial + Menu sync; topic gate (Cars…Chinese) / ban / slash; `ADMIN_IDS` / roles — topics: `start-register.md`, `gate.md` |
 | [`bot-work-with-errors`](skills/bot/bot-work-with-errors/SKILL.md) | Handler/DB/FSM/Telegram errors → русские replies; Menu Button `set_my_commands` soft-fail |
 | [`bot-work-with-structure`](skills/bot/bot-work-with-structure/SKILL.md) | `main.py` / learner+admin handlers / `bot_commands` Menu Button / auth / models / middleware / keyboards / states / Docker |
 | [`bot-work-with-test`](skills/bot/bot-work-with-test/SKILL.md) | pytest + pytest-asyncio (trial/tariffs/gate, Menu Button/slash, admin panel, auth helper, expiry) |
